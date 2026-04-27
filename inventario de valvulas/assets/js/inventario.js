@@ -1599,11 +1599,15 @@ function renderReemplazos() {
     });
   }
 
-  // Sort: vencidos first, then by days
-  rows.sort((a,b) => {
-    const da = a.days ?? 99999, db = b.days ?? 99999;
-    return da - db;
-  });
+  const sortRowsForReemplazos = (a, b) => {
+    const da = a.days ?? 99999;
+    const db = b.days ?? 99999;
+    const atCmp = compareTextNatural(a.at?.econ, b.at?.econ) || compareTextNatural(a.at?.placa, b.at?.placa);
+    const partCmp = compareTextNatural(a.partNo, b.partNo);
+    // Mantener orden de autotanque y, dentro de cada uno, ordenar PIEZA No. ascendente.
+    return atCmp || partCmp || (da - db);
+  };
+  rows.sort(sortRowsForReemplazos);
 
   if (!rows.length) {
     tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:var(--muted);padding:30px">Sin registros que mostrar.</td></tr>';
@@ -1616,6 +1620,10 @@ function renderReemplazos() {
     const key = `plant::${plant.toUpperCase()}`;
     if (!groupsMap.has(key)) groupsMap.set(key, { key, plant, rows: [] });
     groupsMap.get(key).rows.push(r);
+  });
+
+  groupsMap.forEach(group => {
+    group.rows.sort(sortRowsForReemplazos);
   });
 
   const groups = Array.from(groupsMap.values()).sort((a, b) => {
