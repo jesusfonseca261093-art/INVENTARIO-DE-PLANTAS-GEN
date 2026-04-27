@@ -61,6 +61,13 @@
           <option value="planta-asc">Orden: Planta (A-Z)</option>
           <option value="planta-desc">Orden: Planta (Z-A)</option>
         </select>
+        <select id="filterATPlant" onchange="renderAutotanques()" title="Filtrar por planta">
+          <option value="">Todas las plantas</option>
+          <option value="QUERETARO">QUERETARO</option>
+          <option value="BALVANERA">BALVANERA</option>
+          <option value="GALERAS">GALERAS</option>
+          <option value="PEDRO ESCOBEDO">PEDRO ESCOBEDO</option>
+        </select>
         <button class="btn btn-primary" onclick="openModalAutotanque()">+ NUEVO AUTOTANQUE</button>
         <div class="search-input-wrap">
           <span class="search-icon">🔍</span>
@@ -243,6 +250,17 @@
           <div class="detail-row"><span class="detail-key">SUSTITUCIÓN:</span><span class="detail-val">Obligatoria cada 5 años</span></div>
           <div class="detail-row"><span class="detail-key">REFERENCIA:</span><span class="detail-val">Fecha fab. o instalación (la que ocurra primero)</span></div>
           <div class="section-sep"></div>
+          <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:10px">
+            <label for="normPlantSelect" style="font-size:11px;color:var(--muted)">DESCARGAR FORMATO POR PLANTA</label>
+            <select id="normPlantSelect">
+              <option value="">— Seleccionar planta —</option>
+              <option value="QUERETARO">QUERETARO</option>
+              <option value="BALVANERA">BALVANERA</option>
+              <option value="GALERAS">GALERAS</option>
+              <option value="PEDRO ESCOBEDO">PEDRO ESCOBEDO</option>
+            </select>
+            <button class="btn btn-secondary" onclick="exportFormatoValvulasPorPlanta()">🖨 IMPRIMIR FORMATO FECHAS DE VÁLVULAS</button>
+          </div>
           <p style="color:var(--warn); font-size:11px">⚠️ El sistema calcula la fecha de reemplazo automáticamente sumando 5 años a la fecha base obtenida del código o fecha de fabricación (ej. 6A92, 09C22 o 27/04/2026).</p>
         </div>
       </div>

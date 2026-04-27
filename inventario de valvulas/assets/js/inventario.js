@@ -1047,6 +1047,31 @@ function switchTab(id) {
   if (id === 'reemplazos')  renderReemplazos();
 }
 
+function getPlantCatalog() {
+  const fromData = autotanques
+    .map(a => normalizePlantName(a?.plantaActual) || String(a?.plantaActual || '').trim())
+    .filter(Boolean);
+  const merged = [...new Set([...PLANTAS_ACTUALES, ...fromData])];
+  return merged.sort((a, b) => compareTextNatural(a, b));
+}
+
+function fillPlantSelect(selectId, placeholder, plants) {
+  const el = document.getElementById(selectId);
+  if (!el) return;
+  const prev = normalizePlantName(el.value) || String(el.value || '').trim();
+  el.disabled = false;
+  el.innerHTML = `<option value="">${placeholder}</option>` +
+    plants.map(p => `<option value="${p}">${p}</option>`).join('');
+  if (prev && plants.includes(prev)) el.value = prev;
+}
+
+function populatePlantSelectors() {
+  const plants = getPlantCatalog();
+  fillPlantSelect('atPlantaActual', '— Seleccionar planta —', plants);
+  fillPlantSelect('filterATPlant', 'Todas las plantas', plants);
+  fillPlantSelect('normPlantSelect', '— Seleccionar planta —', plants);
+}
+
 // ── PART LIST ─────────────────────────────────────────────────────────
 function renderPartList() {
   const q = (document.getElementById('searchPart')?.value || '').toLowerCase();
@@ -1358,6 +1383,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const loaded = await loadFromSupabase();
     if (!loaded) updateStorageModeLabel('error de carga, revisa SQL/politicas');
   }
+  populatePlantSelectors();
   refreshSelectedPartImageUI();
   renderPartList();
   populateATSelect();
@@ -1368,6 +1394,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 // ── AUTOTANQUES CRUD ─────────────────────────────────────────────────
 function openModalAutotanque(id) {
+  populatePlantSelectors();
   editingATId = id || null;
   currentDraftATId = id || genId();
   pendingExpedienteDeletePaths = [];
@@ -1400,7 +1427,8 @@ function openModalAutotanque(id) {
 async function saveAutotanque() {
   const econ = document.getElementById('atEcon').value.trim();
   const placa = document.getElementById('atPlaca').value.trim();
-  const plantaActual = normalizePlantName(document.getElementById('atPlantaActual').value);
+  const plantaRaw = String(document.getElementById('atPlantaActual').value || '').trim();
+  const plantaActual = normalizePlantName(plantaRaw) || plantaRaw;
   if (!econ || !placa) return alert('No. Económico y Placas son obligatorios.');
   if (!plantaActual) return alert('Selecciona la planta actual.');
   const unitId = editingATId || currentDraftATId || genId();
@@ -1449,6 +1477,7 @@ async function saveAutotanque() {
   originalExpedientePaths = new Set();
   currentDraftATId = null;
   await closeModal('modalAT');
+  populatePlantSelectors();
   renderAutotanques();
   populateATSelect();
 }
@@ -1459,21 +1488,28 @@ async function deleteAutotanque(id) {
   autotanques = autotanques.filter(a => a.id !== id);
   records     = records.filter(r => r.atId !== id);
   save();
+  populatePlantSelectors();
   renderAutotanques();
 }
 
 function renderAutotanques() {
   const q = (document.getElementById('searchAT')?.value || '').toLowerCase();
   const orderMode = document.getElementById('sortAT')?.value || 'econ-asc';
+  const selectedPlantRaw = String(document.getElementById('filterATPlant')?.value || '').trim();
+  const selectedPlant = normalizePlantName(selectedPlantRaw) || selectedPlantRaw;
   const tbody = document.getElementById('tableAT');
   if (!tbody) return;
 
-  const filtered = autotanques.filter(a =>
-    a.econ.toLowerCase().includes(q) ||
-    a.placa.toLowerCase().includes(q) ||
-    (a.plantaActual||'').toLowerCase().includes(q) ||
-    (a.serieUnidad||'').toLowerCase().includes(q)
-  );
+  const filtered = autotanques.filter(a => {
+    const plant = normalizePlantName(a.plantaActual || '');
+    if (selectedPlant && plant !== selectedPlant) return false;
+    return (
+      a.econ.toLowerCase().includes(q) ||
+      a.placa.toLowerCase().includes(q) ||
+      (a.plantaActual||'').toLowerCase().includes(q) ||
+      (a.serieUnidad||'').toLowerCase().includes(q)
+    );
+  });
   const sorted = sortUnitsByMode(filtered, orderMode);
 
   if (!sorted.length) {
@@ -1520,7 +1556,9 @@ function renderAutotanques() {
 
 function viewAutotanque(id) {
   const at = autotanques.find(a => a.id === id);
-  const atRecs = records.filter(r => r.atId === id);
+  const atRecs = records
+    .filter(r => r.atId === id)
+    .sort((a, b) => compareTextNatural(a.partNo, b.partNo));
   const expedienteDocs = at.expediente || [];
   document.getElementById('modalDetailTitle').textContent = `${at.econ} | ${at.placa}`;
   document.getElementById('modalDetailBody').innerHTML = `
@@ -1874,6 +1912,99 @@ function exportVencidosCSV() {
   downloadCSV('vencimientos_criticos_NOM007.csv', rows);
 }
 
+function exportFormatoValvulasPorPlanta() {
+  const selectedPlant = normalizePlantName(document.getElementById('normPlantSelect')?.value || '');
+  if (!selectedPlant) return alert('Selecciona una planta para imprimir el formato.');
+
+  const unitsByPlant = sortUnitsByMode(
+    autotanques.filter(a => normalizePlantName(a.plantaActual || '') === selectedPlant),
+    'econ-asc'
+  );
+  if (!unitsByPlant.length) return alert(`No hay autotanques registrados para ${selectedPlant}.`);
+
+  // Solo unidades sin componentes capturados
+  const units = unitsByPlant.filter(at => !records.some(r => r.atId === at.id));
+  if (!units.length) return alert(`No hay autotanques sin componentes capturados en ${selectedPlant}.`);
+
+  const headers = [
+    'NO. ECONOMICO',
+    'SELLOS PROF',
+    'CINCHOS',
+    'V. CHECK LOCK 3/4"',
+    'V. LLENADO 3"',
+    'V. NO RETROCESO 3"',
+    'V. CARBURACION 3/4"',
+    'V. RETORNO VAPORES 1/4',
+    'V. NO RETROCESO 1 1/4"',
+    'V. MAXIMO LLENADO (1)',
+    'V. MAXIMO LLENADO (2)',
+    'V. MAXIMO LLENADO (3)',
+    'V. INTERNA DE 2"',
+    'V. SEGURIDAD 3"',
+    'MANGUERA MODELO 20BHB'
+  ];
+  const rows = [new Array(headers.length).fill(''), headers];
+  units.forEach(at => {
+    const row = new Array(headers.length).fill('');
+    row[0] = at.econ || '';
+    rows.push(row);
+  });
+
+  const printWindow = window.open('', '_blank');
+  if (!printWindow) {
+    alert('El navegador bloqueó la ventana de impresión. Permite ventanas emergentes e intenta de nuevo.');
+    return;
+  }
+
+  const rowsHtml = rows.map((row, idx) => {
+    const tds = row.map(cell => `<td>${escapeHtml(cell || '')}</td>`).join('');
+    const trClass = idx === 1 ? 'header-row' : '';
+    return `<tr class="${trClass}">${tds}</tr>`;
+  }).join('');
+  const colWidths = [11, 5, 5, 6, 6, 7, 7, 8, 8, 6, 6, 6, 6, 6, 7];
+  const colgroupHtml = `<colgroup>${colWidths.map(w => `<col style="width:${w}%">`).join('')}</colgroup>`;
+
+  const html = `<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Formato Fechas de Válvulas - ${escapeHtml(selectedPlant)}</title>
+  <style>
+    @page { size: landscape; margin: 10mm; }
+    body { font-family: Arial, sans-serif; margin: 0; color: #111; }
+    .meta { margin-bottom: 8px; font-size: 11px; }
+    .meta b { margin-right: 4px; }
+    table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 9.5px; }
+    td {
+      border: 1px solid #000;
+      padding: 4px 3px;
+      vertical-align: middle;
+      text-align: center;
+      white-space: normal;
+      overflow-wrap: anywhere;
+      line-height: 1.15;
+    }
+    .header-row td { font-weight: 700; background: #f2f2f2; font-size: 8.5px; }
+    td:first-child { text-align: left; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <div class="meta"><b>PLANTA:</b>${escapeHtml(selectedPlant)} | <b>TOTAL AUTOTANQUES:</b> ${units.length}</div>
+  <table>${colgroupHtml}<tbody>${rowsHtml}</tbody></table>
+  <script>
+    window.onload = function () {
+      window.focus();
+      window.print();
+    };
+  </script>
+</body>
+</html>`;
+
+  printWindow.document.open();
+  printWindow.document.write(html);
+  printWindow.document.close();
+}
+
 function downloadCSV(filename, rows) {
   const csv = rows.map(r => r.map(c => `"${String(c||'').replace(/"/g,'""')}"`).join(',')).join('\n');
   const a = document.createElement('a');
@@ -2068,6 +2199,7 @@ async function handleImportUnitsCSV(e) {
 
       autotanques = normalizeAutotanques(nextUnits);
       if (!save()) return;
+      populatePlantSelectors();
       renderAutotanques();
       populateATSelect();
       renderDashboard();
@@ -2102,6 +2234,7 @@ function handleImport(e) {
       const replaceImagesPayload = hasPartImages ? partImages : null;
       if (runtimeUseSupabase && !(await replaceRemoteData(autotanques, records, replaceImagesPayload))) return;
       if (!save()) return;
+      populatePlantSelectors();
       renderDashboard();
       renderAutotanques();
       populateATSelect();
