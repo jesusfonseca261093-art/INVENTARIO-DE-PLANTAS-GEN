@@ -26,6 +26,10 @@ let expandedReplGroups = new Set();
 let draftExpedienteDocs = [];
 let pendingExpedienteDeletePaths = [];
 let originalExpedientePaths = new Set();
+let appBootstrapped = false;
+let authIdleTimer = null;
+let authActivityBound = false;
+let authLogoutInProgress = false;
 
 const EXPEDIENTE_CATEGORIES = {
   seguro: 'Seguro de la unidad',
@@ -39,6 +43,8 @@ const PLANTAS_ACTUALES = ['QUERETARO', 'BALVANERA', 'GALERAS', 'PEDRO ESCOBEDO']
 const MAX_DOC_SIZE_LOCAL_BYTES = 1.5 * 1024 * 1024;
 const MAX_DOC_SIZE_SUPABASE_BYTES = 10 * 1024 * 1024;
 const MAX_PART_IMAGE_SIZE_BYTES = 3 * 1024 * 1024;
+const AUTH_IDLE_TIMEOUT_MINUTES = 15;
+const AUTH_IDLE_TIMEOUT_MS = AUTH_IDLE_TIMEOUT_MINUTES * 60 * 1000;
 const SB_URL_KEY = 'sb_url';
 const SB_ANON_KEY = 'sb_anon_key';
 const APP_SUPABASE_CONFIG = window.SUPABASE_CONFIG || {};
@@ -104,13 +110,22 @@ alter table public.at_records enable row level security;
 alter table public.at_part_images enable row level security;
 
 drop policy if exists "at_units_all" on public.at_units;
-create policy "at_units_all" on public.at_units for all using (true) with check (true);
+create policy "at_units_all" on public.at_units
+for all
+using (auth.role() = 'authenticated')
+with check (auth.role() = 'authenticated');
 
 drop policy if exists "at_records_all" on public.at_records;
-create policy "at_records_all" on public.at_records for all using (true) with check (true);
+create policy "at_records_all" on public.at_records
+for all
+using (auth.role() = 'authenticated')
+with check (auth.role() = 'authenticated');
 
 drop policy if exists "at_part_images_all" on public.at_part_images;
-create policy "at_part_images_all" on public.at_part_images for all using (true) with check (true);
+create policy "at_part_images_all" on public.at_part_images
+for all
+using (auth.role() = 'authenticated')
+with check (auth.role() = 'authenticated');
 
 insert into storage.buckets (id, name, public)
 values ('${SUPABASE_BUCKET_EXPEDIENTE}', '${SUPABASE_BUCKET_EXPEDIENTE}', false)
@@ -120,8 +135,8 @@ drop policy if exists "at_expediente_rw" on storage.objects;
 create policy "at_expediente_rw"
 on storage.objects
 for all
-using (bucket_id = '${SUPABASE_BUCKET_EXPEDIENTE}')
-with check (bucket_id = '${SUPABASE_BUCKET_EXPEDIENTE}');
+using (bucket_id = '${SUPABASE_BUCKET_EXPEDIENTE}' and auth.role() = 'authenticated')
+with check (bucket_id = '${SUPABASE_BUCKET_EXPEDIENTE}' and auth.role() = 'authenticated');
 `.trim();
 
 autotanques = normalizeAutotanques(autotanques);
@@ -1369,8 +1384,121 @@ function renderExpedienteTable(expedienteDocs, atId) {
   `;
 }
 
+function setAuthError(message = '') {
+  const errEl = document.getElementById('loginError');
+  if (errEl) errEl.textContent = message;
+}
+
+function clearAuthIdleTimer() {
+  if (!authIdleTimer) return;
+  clearTimeout(authIdleTimer);
+  authIdleTimer = null;
+}
+
+async function forceLogoutByInactivity() {
+  if (authLogoutInProgress) return;
+  authLogoutInProgress = true;
+  await logoutApp({ dueToInactivity: true });
+  authLogoutInProgress = false;
+}
+
+function startAuthIdleTimer() {
+  clearAuthIdleTimer();
+  if (document.body.classList.contains('auth-locked')) return;
+  authIdleTimer = setTimeout(forceLogoutByInactivity, AUTH_IDLE_TIMEOUT_MS);
+}
+
+function bindAuthActivityWatchers() {
+  if (authActivityBound) return;
+  const events = ['mousemove', 'mousedown', 'keydown', 'scroll', 'touchstart'];
+  const onActivity = () => startAuthIdleTimer();
+  events.forEach(evt => window.addEventListener(evt, onActivity, { passive: true }));
+  authActivityBound = true;
+}
+
+function setAuthLocked(locked, displayName = '') {
+  document.body.classList.toggle('auth-locked', locked);
+  const gate = document.getElementById('authGate');
+  if (gate) gate.classList.toggle('open', locked);
+
+  const userEl = document.getElementById('authCurrentUser');
+  if (userEl) userEl.textContent = locked ? '' : `Usuario: ${displayName || 'Activo'}`;
+
+  const logoutBtn = document.getElementById('btnLogout');
+  if (logoutBtn) logoutBtn.style.display = locked ? 'none' : 'inline-flex';
+
+  if (locked) clearAuthIdleTimer();
+  else startAuthIdleTimer();
+  if (locked) setTimeout(() => document.getElementById('loginUser')?.focus(), 60);
+}
+
+async function getAuthUserFromSupabase() {
+  if (!supabaseClient) return null;
+  const { data, error } = await supabaseClient.auth.getSession();
+  if (error) return null;
+  return data?.session?.user || null;
+}
+
+async function handleLoginSubmit(ev) {
+  ev.preventDefault();
+  if (!SUPABASE_ENABLED || !supabaseClient) {
+    setAuthError('Supabase no está configurado. Revisa URL y ANON KEY.');
+    return;
+  }
+
+  const userInput = String(document.getElementById('loginUser')?.value || '').trim();
+  const passInput = document.getElementById('loginPass')?.value || '';
+  if (!userInput || !passInput) {
+    setAuthError('Ingresa usuario/correo y contraseña.');
+    return;
+  }
+
+  setAuthError('');
+  const { data, error } = await supabaseClient.auth.signInWithPassword({
+    email: userInput,
+    password: passInput
+  });
+  if (error || !data?.user) {
+    setAuthError('Credenciales inválidas o usuario no confirmado.');
+    return;
+  }
+
+  const displayName = data.user.user_metadata?.full_name || data.user.email || data.user.id;
+  setAuthLocked(false, displayName);
+  await bootstrapApp();
+}
+
+async function logoutApp(options = {}) {
+  const dueToInactivity = Boolean(options?.dueToInactivity);
+  clearAuthIdleTimer();
+  if (supabaseClient) {
+    await supabaseClient.auth.signOut();
+  }
+  document.querySelectorAll('.modal-overlay.open').forEach(el => el.classList.remove('open'));
+  const userEl = document.getElementById('loginUser');
+  if (userEl) userEl.value = '';
+  const passEl = document.getElementById('loginPass');
+  if (passEl) passEl.value = '';
+  setAuthLocked(true);
+  if (dueToInactivity) {
+    setAuthError(`Sesión cerrada por inactividad (${AUTH_IDLE_TIMEOUT_MINUTES} min).`);
+  } else {
+    setAuthError('');
+  }
+}
+
+function bindLoginForm() {
+  const form = document.getElementById('loginForm');
+  if (!form || form.dataset.bound === '1') return;
+  form.addEventListener('submit', handleLoginSubmit);
+  form.dataset.bound = '1';
+}
+
 // Auto-calc replacement date
-document.addEventListener('DOMContentLoaded', async () => {
+async function bootstrapApp() {
+  if (appBootstrapped) return;
+  appBootstrapped = true;
+
   document.getElementById('formFabDate')?.addEventListener('input', updateReplacementFromFabInput);
   document.getElementById('editRecFabDate')?.addEventListener('change', e => {
     const replEl = document.getElementById('editRecReplDate');
@@ -1390,6 +1518,26 @@ document.addEventListener('DOMContentLoaded', async () => {
   renderDashboard();
   renderAutotanques();
   renderDraftExpedienteList();
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+  bindLoginForm();
+  bindAuthActivityWatchers();
+  if (!SUPABASE_ENABLED || !supabaseClient) {
+    setAuthLocked(true);
+    setAuthError('Configura Supabase para usar login seguro.');
+    return;
+  }
+
+  const user = await getAuthUserFromSupabase();
+  if (!user) {
+    setAuthLocked(true);
+    return;
+  }
+
+  const displayName = user.user_metadata?.full_name || user.email || user.id;
+  setAuthLocked(false, displayName);
+  await bootstrapApp();
 });
 
 // ── AUTOTANQUES CRUD ─────────────────────────────────────────────────

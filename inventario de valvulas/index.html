@@ -10,14 +10,38 @@
 
 <header>
   <div class="logo-area">
-    <div class="logo-icon">AT</div>
+    <div class="logo-icon">
+      <img src="assets/img/gen.png" alt="GEN">
+    </div>
     <div class="header-title">
       <h1>INVENTARIO GEN</h1>
       <p>SISTEMA DE CONTROL DE COMPONENTES DE AUTOTANQUES</p>
     </div>
   </div>
-  <div class="header-badge">Ing Jesus Fonseca </div>
+  <div class="header-actions">
+    <div class="header-badge">Ing Jesus Fonseca</div>
+    <span id="authCurrentUser" class="header-user"></span>
+    <button id="btnLogout" class="btn btn-secondary header-logout" type="button" onclick="logoutApp()" style="display:none">CERRAR SESIÓN</button>
+  </div>
 </header>
+
+<div id="authGate" class="auth-gate">
+  <div class="auth-card">
+    <div class="auth-brand">
+      <img src="assets/img/gen.png" alt="GEN">
+      <h2>ACCESO AL SISTEMA</h2>
+    </div>
+    <p class="text-muted" style="margin-bottom:14px">Inicia sesión para continuar.</p>
+    <form id="loginForm">
+      <label for="loginUser">CORREO</label>
+      <input id="loginUser" type="email" autocomplete="username" placeholder="correo@dominio.com">
+      <label for="loginPass" style="margin-top:10px">CONTRASEÑA</label>
+      <input id="loginPass" type="password" autocomplete="current-password" placeholder="Contraseña">
+      <p id="loginError" class="auth-error"></p>
+      <button class="btn btn-primary" type="submit" style="width:100%;justify-content:center">INGRESAR</button>
+    </form>
+  </div>
+</div>
 
 <div class="container">
 
@@ -145,7 +169,7 @@
         </div>
         <div class="grid-2" style="margin-bottom:14px">
           <div>
-            <label>CÓDIGO-FECHA DE FABRICACIÓN</label>
+            <label>FECHA DE FABRICACIÓN</label>
             <input type="text" id="formFabDate" placeholder="Ej. 6A92, 9C22, 09C22 o 27/04/2026">
             <p class="text-muted" id="formFabHint" style="margin-top:6px">Formato código: <b>6A92</b> = mes 6 (junio), semana A (1ra), año 1992. También acepta <b>27/04/2026</b>.</p>
           </div>
@@ -155,7 +179,7 @@
           </div>
         </div>
         <div style="margin-bottom:14px">
-          <label>FECHA DE PRÓXIMO REEMPLAZO (auto +5 años) *</label>
+          <label>FECHA DE PRÓXIMO REEMPLAZO</label>
           <input type="date" id="formReplDate" readonly style="background:var(--surface); cursor:not-allowed">
         </div>
         <div class="grid-2" style="margin-bottom:14px">
@@ -178,7 +202,7 @@
           <button class="btn btn-primary" onclick="saveComponentRecord()">💾 GUARDAR REGISTRO</button>
           <button class="btn btn-secondary" onclick="clearForm()">✕ LIMPIAR</button>
         </div>
-        <p class="text-muted mt-12">* Según NOM-EM-007-ASEA-2025: sustitución obligatoria cada 5 años.</p>
+        <p class="text-muted mt-12">NOM-EM-007-ASEA-2025: sustitución obligatoria cada 5 años.</p>
       </div>
     </div>
   </div>

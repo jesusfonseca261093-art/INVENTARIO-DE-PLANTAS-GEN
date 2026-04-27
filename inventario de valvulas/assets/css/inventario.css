@@ -35,14 +35,18 @@
     position: sticky; top: 0; z-index: 100;
     box-shadow: 0 4px 18px rgba(3,105,161,0.12);
   }
-  .logo-area { display: flex; align-items: center; gap: 14px; }
+  .logo-area { display: flex; align-items: center; gap: 12px; }
   .logo-icon {
-    width: 48px; height: 48px;
-    background: var(--accent);
-    clip-path: polygon(25% 0%, 75% 0%, 100% 25%, 100% 75%, 75% 100%, 25% 100%, 0% 75%, 0% 25%);
+    width: 148px; height: 52px;
+    background: #fff;
+    border-radius: 6px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    padding: 4px 6px;
     display: flex; align-items: center; justify-content: center;
-    font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 18px; color: #000;
+    flex: 0 0 auto;
   }
+  .logo-icon img { width: 100%; height: 100%; object-fit: contain; display: block; }
   .header-title { font-family: 'Rajdhani', sans-serif; }
   .header-title h1 { font-size: 22px; font-weight: 700; letter-spacing: 1px; color: var(--accent); }
   .header-title p { font-size: 11px; color: var(--muted); font-family: 'IBM Plex Mono', monospace; letter-spacing: 2px; }
@@ -52,6 +56,57 @@
     color: var(--accent2);
     font-family: 'IBM Plex Mono', monospace;
     font-size: 10px; padding: 6px 12px; border-radius: 4px; letter-spacing: 1px;
+  }
+  .header-actions { display: flex; align-items: center; gap: 10px; }
+  .header-user {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 1px;
+    white-space: nowrap;
+  }
+  .header-logout {
+    padding: 6px 10px;
+    font-size: 11px;
+    letter-spacing: .8px;
+    white-space: nowrap;
+  }
+
+  /* ── Auth gate ─────────────────────────── */
+  .auth-gate {
+    position: fixed; inset: 0; z-index: 400;
+    display: none; align-items: center; justify-content: center;
+    padding: 20px;
+    background: radial-gradient(circle at top, #e2e8f0 0%, #cbd5e1 45%, #94a3b8 100%);
+  }
+  .auth-gate.open { display: flex; }
+  .auth-card {
+    width: min(420px, 100%);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+    box-shadow: 0 20px 50px rgba(15, 23, 42, .25);
+  }
+  .auth-brand { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .auth-brand img { width: 88px; height: 32px; object-fit: contain; }
+  .auth-brand h2 {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 20px;
+    color: var(--accent);
+    letter-spacing: 1px;
+  }
+  .auth-error {
+    min-height: 18px;
+    color: var(--danger);
+    font-size: 11px;
+    margin: 8px 0;
+  }
+  body.auth-locked header,
+  body.auth-locked .container {
+    pointer-events: none;
+    user-select: none;
+    filter: blur(1.2px);
   }
 
   /* ── Layout ──────────────────────────────── */
@@ -257,6 +312,8 @@
   @media (max-width: 768px) {
     .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
     .header-badge { display: none; }
+    .header-user { display: none; }
+    .logo-icon { width: 118px; height: 42px; padding: 3px 5px; }
     .expediente-controls { grid-template-columns: 1fr; }
     .repl-controls { grid-template-columns: 1fr; min-width: 100%; }
     .repl-controls .search-input-wrap { grid-column: auto; }
