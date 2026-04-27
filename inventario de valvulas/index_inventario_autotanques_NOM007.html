@@ -1,0 +1,407 @@
+﻿<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Inventario NOM-EM-007-ASEA-2025 | Autotanques</title>
+<link rel="stylesheet" href="assets/css/inventario.css">
+</head>
+<body>
+
+<header>
+  <div class="logo-area">
+    <div class="logo-icon">AT</div>
+    <div class="header-title">
+      <h1>INVENTARIO GEN</h1>
+      <p>SISTEMA DE CONTROL DE COMPONENTES DE AUTOTANQUES</p>
+    </div>
+  </div>
+  <div class="header-badge">Ing Jesus Fonseca </div>
+</header>
+
+<div class="container">
+
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('dashboard')">📊 DASHBOARD</button>
+    <button class="tab-btn" onclick="switchTab('autotanques')">🚛 AUTOTANQUES</button>
+    <button class="tab-btn" onclick="switchTab('registro')">➕ REGISTRAR COMPONENTE</button>
+    <button class="tab-btn" onclick="switchTab('reemplazos')">⚠️ PRÓXIMOS REEMPLAZOS</button>
+    <button class="tab-btn" onclick="switchTab('exportar')">📥 EXPORTAR</button>
+  </div>
+
+  <!-- ── DASHBOARD ────────────────────────── -->
+  <div id="tab-dashboard" class="tab-panel active">
+    <div class="stats-grid" id="statsGrid"></div>
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">VENCIMIENTOS CRÍTICOS (≤ 90 DÍAS)</div>
+        <div id="criticalList" class="table-wrap">
+          <p class="text-muted">Cargando...</p>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">ACTIVIDAD RECIENTE</div>
+        <div id="recentActivity">
+          <p class="text-muted">Sin registros aún.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── AUTOTANQUES ───────────────────────── -->
+  <div id="tab-autotanques" class="tab-panel">
+    <div class="at-header">
+      <div class="card-title" style="margin:0">FLOTA DE AUTOTANQUES</div>
+      <div class="flex-gap">
+        <select id="sortAT" onchange="renderAutotanques()" title="Ordenar autotanques">
+          <option value="econ-asc">Orden: Económico (menor a mayor)</option>
+          <option value="econ-desc">Orden: Económico (mayor a menor)</option>
+          <option value="placa-asc">Orden: Placa (A-Z)</option>
+          <option value="placa-desc">Orden: Placa (Z-A)</option>
+          <option value="planta-asc">Orden: Planta (A-Z)</option>
+          <option value="planta-desc">Orden: Planta (Z-A)</option>
+        </select>
+        <button class="btn btn-primary" onclick="openModalAutotanque()">+ NUEVO AUTOTANQUE</button>
+        <div class="search-input-wrap">
+          <span class="search-icon">🔍</span>
+          <input type="text" id="searchAT" placeholder="Buscar por económico, placa, planta..." oninput="renderAutotanques()">
+        </div>
+      </div>
+    </div>
+    <div class="table-wrap card">
+      <table>
+        <thead>
+          <tr>
+            <th>NO. ECONÓMICO</th>
+            <th>PLACA</th>
+            <th>NO. SERIE UNIDAD</th>
+            <th>NO. SERIE TANQUE</th>
+            <th>CAPACIDAD</th>
+            <th>PLANTA ACTUAL</th>
+            <th>COMPONENTES</th>
+            <th>ESTADO</th>
+            <th>ACCIONES</th>
+          </tr>
+        </thead>
+        <tbody id="tableAT"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── REGISTRO COMPONENTE ──────────────── -->
+  <div id="tab-registro" class="tab-panel">
+    <div class="grid-2" style="gap:20px;align-items:start">
+
+      <!-- Left: selector de pieza -->
+      <div>
+        <div class="card">
+          <div class="card-title">SELECCIONAR COMPONENTE</div>
+          <input type="text" id="searchPart" placeholder="Filtrar componente..." oninput="filterParts()" style="margin-bottom:10px">
+          <div class="part-selector-list" id="partList"></div>
+        </div>
+
+        <div class="card mt-12" id="partPreviewCard" style="display:none">
+          <div class="card-title">VISTA EN DIAGRAMA</div>
+          <div class="diagram-container" id="diagramContainer">
+            <img id="diagramImg" src="" alt="Diagrama">
+            <div class="diagram-highlight" id="diagramHighlight"></div>
+          </div>
+          <div class="mt-12" id="partDetailInfo"></div>
+          <details class="part-image-config mt-12">
+            <summary>Opciones de imagen</summary>
+            <div class="part-image-config-body">
+              <label>IMAGEN DE LA PIEZA SELECCIONADA</label>
+              <input type="file" id="partImageFile" accept=".png,.jpg,.jpeg,.webp" style="margin-bottom:10px">
+              <div class="flex-gap">
+                <button class="btn btn-secondary" type="button" onclick="saveSelectedPartImage()">GUARDAR / ACTUALIZAR</button>
+                <button class="btn btn-secondary" type="button" onclick="removeSelectedPartImage()">QUITAR</button>
+              </div>
+              <p id="partImageStatus" class="text-muted mt-12"></p>
+            </div>
+          </details>
+        </div>
+      </div>
+
+      <!-- Right: formulario -->
+      <div class="card">
+        <div class="card-title">DATOS DE REGISTRO</div>
+        <div style="margin-bottom:14px">
+          <label>AUTOTANQUE</label>
+          <select id="formAT">
+            <option value="">— Seleccionar autotanque —</option>
+          </select>
+        </div>
+        <div id="selectedPartInfo" style="margin-bottom:14px; display:none">
+          <div class="card" style="background:var(--surface2); padding:12px">
+            <div id="selectedPartText"></div>
+          </div>
+        </div>
+        <div class="grid-2" style="margin-bottom:14px">
+          <div>
+            <label>CÓDIGO-FECHA DE FABRICACIÓN</label>
+            <input type="text" id="formFabDate" placeholder="Ej. 6A92, 9C22, 09C22 o 27/04/2026">
+            <p class="text-muted" id="formFabHint" style="margin-top:6px">Formato código: <b>6A92</b> = mes 6 (junio), semana A (1ra), año 1992. También acepta <b>27/04/2026</b>.</p>
+          </div>
+          <div>
+            <label>FECHA DE INSTALACIÓN</label>
+            <input type="date" id="formInstDate">
+          </div>
+        </div>
+        <div style="margin-bottom:14px">
+          <label>FECHA DE PRÓXIMO REEMPLAZO (auto +5 años) *</label>
+          <input type="date" id="formReplDate" readonly style="background:var(--surface); cursor:not-allowed">
+        </div>
+        <div class="grid-2" style="margin-bottom:14px">
+          <div>
+            <label>NÚMERO DE SERIE / LOTE</label>
+            <input type="text" id="formSerial" placeholder="Ej. ABC-2024-001">
+          </div>
+          <div>
+            <label>PROVEEDOR / MARCA</label>
+            <input type="text" id="formBrand" placeholder="Ej. REGO">
+          </div>
+        </div>
+        <div style="margin-bottom:14px">
+          <label>NOTAS / OBSERVACIONES</label>
+          <textarea id="formNotes" rows="2" placeholder="Observaciones adicionales..."></textarea>
+          <p class="text-muted mt-12">Si el autotanque no cuenta con la válvula, puedes dejar sin fecha y guardar con la observación en notas.</p>
+        </div>
+        <div class="section-sep"></div>
+        <div class="flex-gap">
+          <button class="btn btn-primary" onclick="saveComponentRecord()">💾 GUARDAR REGISTRO</button>
+          <button class="btn btn-secondary" onclick="clearForm()">✕ LIMPIAR</button>
+        </div>
+        <p class="text-muted mt-12">* Según NOM-EM-007-ASEA-2025: sustitución obligatoria cada 5 años.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── PRÓXIMOS REEMPLAZOS ──────────────── -->
+  <div id="tab-reemplazos" class="tab-panel">
+    <div class="search-row">
+      <div class="card-title" style="margin:0">CALENDARIO DE REEMPLAZOS</div>
+      <div class="repl-controls">
+        <div class="search-input-wrap">
+          <span class="search-icon">🔍</span>
+          <input type="text" id="searchRepl" placeholder="Buscar por económico, placa, planta, pieza..." oninput="renderReemplazos()">
+        </div>
+        <select id="filterReplAT" onchange="renderReemplazos()">
+          <option value="">Todos los autotanques</option>
+        </select>
+        <select id="filterReplStatus" onchange="renderReemplazos()">
+          <option value="">Todos los estados</option>
+          <option value="vencido">Vencidos</option>
+          <option value="critico">Críticos (≤90 días)</option>
+          <option value="proximo">Próximos (≤180 días)</option>
+          <option value="vigente">Vigentes</option>
+          <option value="sin-fecha">Sin fecha</option>
+        </select>
+      </div>
+    </div>
+    <div class="card table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>AUTOTANQUE</th>
+            <th>PIEZA No.</th>
+            <th>DESCRIPCIÓN</th>
+            <th>NÚMERO DE PARTE</th>
+            <th>F. FABRICACIÓN</th>
+            <th>F. INSTALACIÓN</th>
+            <th>F. REEMPLAZO</th>
+            <th>DÍAS RESTANTES</th>
+            <th>ESTADO</th>
+            <th>ACCIONES</th>
+          </tr>
+        </thead>
+        <tbody id="tableReemplazos"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── EXPORTAR ──────────────────────────── -->
+  <div id="tab-exportar" class="tab-panel">
+    <div class="grid-2" style="gap:20px">
+      <div class="card">
+        <div class="card-title">EXPORTAR DATOS</div>
+        <p style="font-size:13px; color:var(--muted); margin-bottom:16px">Descarga el inventario en diferentes formatos para reportes y cumplimiento normativo.</p>
+        <div style="display:flex; flex-direction:column; gap:10px">
+          <button class="btn btn-export" onclick="exportCSV()">📊 EXPORTAR CSV (todos los registros)</button>
+          <button class="btn btn-export" onclick="exportVencidosCSV()">⚠️ EXPORTAR CSV (solo vencidos / críticos)</button>
+          <button class="btn btn-secondary" onclick="exportJSON()">💾 EXPORTAR JSON (respaldo completo)</button>
+          <button class="btn btn-secondary" onclick="importJSON()">📂 IMPORTAR JSON (restaurar respaldo)</button>
+          <button class="btn btn-secondary" onclick="importUnitsCSV()">📋 IMPORTAR AUTOTANQUES CSV</button>
+          <input type="file" id="importFile" accept=".json" style="display:none" onchange="handleImport(event)">
+          <input type="file" id="importUnitsFile" accept=".csv,text/csv" style="display:none" onchange="handleImportUnitsCSV(event)">
+        </div>
+        <p class="text-muted mt-12">CSV esperado: económico, placa, serie_unidad, serie_tanque, capacidad, anio, planta_actual, notas. También acepta: ECONOMICO, NO. SERIE AUTOTANQUE, MARCA, MODELO, N°, PLACAS, TIPO, PLANTA ACTUAL, CAPACIDAD. Plantas válidas: QUERETARO, BALVANERA, GALERAS, PEDRO ESCOBEDO.</p>
+      </div>
+      <div class="card">
+        <div class="card-title">INFORMACIÓN NORMATIVA</div>
+        <div style="font-size:12px; line-height:1.8; color:var(--text)">
+          <div class="detail-row"><span class="detail-key">NORMA:</span><span class="detail-val">NOM-EM-007-ASEA-2025</span></div>
+          <div class="detail-row"><span class="detail-key">SUSTITUCIÓN:</span><span class="detail-val">Obligatoria cada 5 años</span></div>
+          <div class="detail-row"><span class="detail-key">REFERENCIA:</span><span class="detail-val">Fecha fab. o instalación (la que ocurra primero)</span></div>
+          <div class="section-sep"></div>
+          <p style="color:var(--warn); font-size:11px">⚠️ El sistema calcula la fecha de reemplazo automáticamente sumando 5 años a la fecha base obtenida del código o fecha de fabricación (ej. 6A92, 09C22 o 27/04/2026).</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /container -->
+
+<!-- ── MODAL: NUEVO AUTOTANQUE ─────────── -->
+<div class="modal-overlay" id="modalAT">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="modalATTitle">NUEVO AUTOTANQUE</h3>
+      <button class="modal-close" onclick="closeModal('modalAT')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="grid-2">
+        <div>
+          <label>NO. ECONÓMICO *</label>
+          <input type="text" id="atEcon" placeholder="Ej. QI-3097">
+        </div>
+        <div>
+          <label>PLACAS *</label>
+          <input type="text" id="atPlaca" placeholder="Ej. ABC-1234">
+        </div>
+        <div>
+          <label>NO. SERIE UNIDAD</label>
+          <input type="text" id="atSerieUnidad" placeholder="No. de serie">
+        </div>
+        <div>
+          <label>NO. SERIE TANQUE</label>
+          <input type="text" id="atSerieTanque" placeholder="No. de serie">
+        </div>
+        <div>
+          <label>CAPACIDAD (LITROS)</label>
+          <input type="number" id="atCapacidad" placeholder="Ej. 5800">
+        </div>
+        <div>
+          <label>AÑO MODELO</label>
+          <input type="number" id="atAnio" placeholder="Ej. 2020">
+        </div>
+        <div>
+          <label>PLANTA ACTUAL *</label>
+          <select id="atPlantaActual">
+            <option value="">— Seleccionar planta —</option>
+            <option value="QUERETARO">QUERETARO</option>
+            <option value="BALVANERA">BALVANERA</option>
+            <option value="GALERAS">GALERAS</option>
+            <option value="PEDRO ESCOBEDO">PEDRO ESCOBEDO</option>
+          </select>
+        </div>
+      </div>
+      <div style="margin-top:14px">
+        <label>NOTAS</label>
+        <textarea id="atNotas" rows="2" placeholder="Notas del vehículo..."></textarea>
+      </div>
+      <div class="section-sep"></div>
+      <div class="expediente-box">
+        <div class="card-title" style="margin-bottom:10px">EXPEDIENTE DEL AUTOTANQUE</div>
+        <p class="text-muted" style="margin-bottom:10px">Sube documentos como seguro, permisos, pagos y anexos del expediente.</p>
+        <div class="expediente-controls">
+          <div>
+            <label>TIPO DE DOCUMENTO</label>
+            <select id="expDocCategory">
+              <option value="seguro">Seguro de la unidad</option>
+              <option value="permiso">Permisos</option>
+              <option value="pago">Pagos</option>
+              <option value="verificacion">Verificacion / inspeccion</option>
+              <option value="otro">Otro</option>
+            </select>
+          </div>
+          <div>
+            <label>NOMBRE (OPCIONAL)</label>
+            <input type="text" id="expDocName" placeholder="Ej. Poliza 2026">
+          </div>
+          <div>
+            <label>ARCHIVO</label>
+            <input type="file" id="expDocFile" accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,.xls,.xlsx,.txt">
+          </div>
+        </div>
+        <div class="mt-12">
+          <button class="btn btn-success" type="button" onclick="addExpedienteDoc()">+ AGREGAR DOCUMENTO</button>
+        </div>
+        <div id="expedienteDraftList" class="expediente-list mt-12"></div>
+        <p class="text-warning mt-12" id="expedienteLimitNote">Nota: por limite de almacenamiento local, usa archivos ligeros (recomendado max 1.5 MB por archivo).</p>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modalAT')">CANCELAR</button>
+      <button class="btn btn-primary" onclick="saveAutotanque()">GUARDAR</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── MODAL: DETALLE COMPONENTE ─────────── -->
+<div class="modal-overlay" id="modalDetail">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="modalDetailTitle">DETALLE DE COMPONENTE</h3>
+      <button class="modal-close" onclick="closeModal('modalDetail')">×</button>
+    </div>
+    <div class="modal-body" id="modalDetailBody"></div>
+    <div class="modal-footer">
+      <button class="btn btn-danger" id="modalDetailDelete">ELIMINAR</button>
+      <button class="btn btn-secondary" onclick="closeModal('modalDetail')">CERRAR</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── MODAL: EDITAR REGISTRO REEMPLAZO ─────────── -->
+<div class="modal-overlay" id="modalRecordEdit">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="modalRecordEditTitle">EDITAR REGISTRO</h3>
+      <button class="modal-close" onclick="closeModal('modalRecordEdit')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="card" style="background:var(--surface2); padding:12px; margin-bottom:12px">
+        <div id="editRecAt" style="font-weight:700; color:var(--accent)"></div>
+        <div id="editRecPart" class="text-muted"></div>
+      </div>
+      <div class="grid-2" style="margin-bottom:12px">
+        <div>
+          <label>FECHA DE FABRICACIÓN *</label>
+          <input type="date" id="editRecFabDate">
+        </div>
+        <div>
+          <label>FECHA DE INSTALACIÓN</label>
+          <input type="date" id="editRecInstDate">
+        </div>
+      </div>
+      <div style="margin-bottom:12px">
+        <label>FECHA DE PRÓXIMO REEMPLAZO (si queda vacía se calcula +5 años)</label>
+        <input type="date" id="editRecReplDate">
+      </div>
+      <div class="grid-2" style="margin-bottom:12px">
+        <div>
+          <label>NÚMERO DE SERIE / LOTE</label>
+          <input type="text" id="editRecSerial">
+        </div>
+        <div>
+          <label>PROVEEDOR / MARCA</label>
+          <input type="text" id="editRecBrand">
+        </div>
+      </div>
+      <div>
+        <label>NOTAS / OBSERVACIONES</label>
+        <textarea id="editRecNotes" rows="3"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modalRecordEdit')">CANCELAR</button>
+      <button class="btn btn-primary" onclick="saveRecordEdit()">GUARDAR CAMBIOS</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="assets/config/supabase.config.js"></script>
+<script src="assets/js/inventario.js" defer></script>
+</body>
+</html>
