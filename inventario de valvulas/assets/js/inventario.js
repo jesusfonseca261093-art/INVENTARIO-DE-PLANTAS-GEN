@@ -1741,12 +1741,14 @@ function renderAutotanques() {
   const sorted = sortUnitsByMode(filtered, orderMode);
 
   if (!sorted.length) {
-    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:30px">Sin autotanques registrados. Haz clic en "+ NUEVO AUTOTANQUE".</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:var(--muted);padding:30px">Sin autotanques registrados. Haz clic en "+ NUEVO AUTOTANQUE".</td></tr>';
     return;
   }
 
   tbody.innerHTML = sorted.map(at => {
     const atRecs = records.filter(r => r.atId === at.id);
+    const expedienteDocs = normalizeExpediente(at.expediente);
+    const expedienteCount = expedienteDocs.length;
     const withDate = atRecs.filter(r => r.replDate);
     const vencidos = withDate.filter(r => daysUntil(r.replDate) < 0).length;
     const criticos = withDate.filter(r => { const d=daysUntil(r.replDate); return d>=0&&d<=90; }).length;
@@ -1758,6 +1760,9 @@ function renderAutotanques() {
 
     const pct = atRecs.length ? Math.round(atRecs.length/PARTS.length*100) : 0;
     const pctClass = pct < 50 ? 'danger' : pct < 80 ? 'warn' : '';
+    const expedienteEstado = expedienteCount
+      ? `<span class="badge badge-ok">CAPTURADO (${expedienteCount})</span>`
+      : '<span class="badge badge-none">SIN CAPTURAR</span>';
 
     return `<tr>
       <td><b style="color:var(--accent)">${at.econ}</b></td>
@@ -1766,6 +1771,7 @@ function renderAutotanques() {
       <td style="font-family:monospace;font-size:11px">${at.serieTanque||'—'}</td>
       <td>${at.capacidad?at.capacidad+' L':'—'}</td>
       <td>${at.plantaActual || '—'}</td>
+      <td>${expedienteEstado}</td>
       <td class="progress-cell">
         <div class="prog-bar"><div class="prog-fill ${pctClass}" style="width:${pct}%"></div></div>
         <span style="font-size:11px">${atRecs.length}/${PARTS.length}</span>
