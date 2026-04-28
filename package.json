@@ -1,0 +1,13 @@
+{
+  "name": "inventario-de-plantas-gen",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build:obf": "javascript-obfuscator \"inventario de valvulas/assets/js/inventario.js\" --output \"inventario de valvulas/assets/js/inventario.obf.js\" --compact true --control-flow-flattening true --string-array true --string-array-encoding base64 --self-defending true",
+    "build:obf:light": "javascript-obfuscator \"inventario de valvulas/assets/js/inventario.js\" --output \"inventario de valvulas/assets/js/inventario.obf.js\" --compact true --string-array true"
+  },
+  "devDependencies": {
+    "javascript-obfuscator": "^4.1.1"
+  }
+}
+

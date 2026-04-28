@@ -45,6 +45,8 @@ const MAX_DOC_SIZE_SUPABASE_BYTES = 10 * 1024 * 1024;
 const MAX_PART_IMAGE_SIZE_BYTES = 3 * 1024 * 1024;
 const AUTH_IDLE_TIMEOUT_MINUTES = 15;
 const AUTH_IDLE_TIMEOUT_MS = AUTH_IDLE_TIMEOUT_MINUTES * 60 * 1000;
+const REPLACEMENT_YEARS = 10;
+const LEGACY_REPLACEMENT_YEARS = 5;
 const SB_URL_KEY = 'sb_url';
 const SB_ANON_KEY = 'sb_anon_key';
 const APP_SUPABASE_CONFIG = window.SUPABASE_CONFIG || {};
@@ -306,7 +308,7 @@ function updateReplacementFromFabInput() {
     return null;
   }
 
-  replInputEl.value = addYears(parsed.iso, 5);
+  replInputEl.value = addYears(parsed.iso, REPLACEMENT_YEARS);
   if (hintEl) {
     if (parsed.type === 'date') {
       hintEl.innerHTML = `Fecha capturada: <b>${parsed.iso}</b>.`;
@@ -319,9 +321,54 @@ function updateReplacementFromFabInput() {
 
 function addYears(dateStr, years) {
   if (!dateStr) return '';
-  const d = new Date(dateStr);
+  const raw = String(dateStr).trim();
+  const isoMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (isoMatch) {
+    const year = Number(isoMatch[1]);
+    const month = Number(isoMatch[2]);
+    const day = Number(isoMatch[3]);
+    const nextYear = year + Number(years || 0);
+    const maxDay = new Date(nextYear, month, 0).getDate();
+    const nextDay = Math.min(day, maxDay);
+    return `${nextYear}-${String(month).padStart(2, '0')}-${String(nextDay).padStart(2, '0')}`;
+  }
+  const d = new Date(raw);
+  if (Number.isNaN(d.getTime())) return '';
   d.setFullYear(d.getFullYear() + years);
-  return d.toISOString().split('T')[0];
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function applyReplacementPolicyToRecord(rec) {
+  const safeRec = { ...(rec || {}) };
+  const fabDate = String(safeRec.fabDate || '').trim();
+  if (!fabDate) return { record: safeRec, changed: false };
+
+  const repl10 = addYears(fabDate, REPLACEMENT_YEARS);
+  if (!repl10) return { record: safeRec, changed: false };
+
+  const currentRepl = String(safeRec.replDate || '').trim();
+  if (!currentRepl) {
+    safeRec.replDate = repl10;
+    return { record: safeRec, changed: true };
+  }
+
+  const repl5 = addYears(fabDate, LEGACY_REPLACEMENT_YEARS);
+  if (repl5 && currentRepl === repl5) {
+    safeRec.replDate = repl10;
+    return { record: safeRec, changed: true };
+  }
+
+  return { record: safeRec, changed: false };
+}
+
+function applyReplacementPolicyToRecords(list) {
+  const changed = [];
+  const normalized = (Array.isArray(list) ? list : []).map(rec => {
+    const result = applyReplacementPolicyToRecord(rec);
+    if (result.changed) changed.push(result.record);
+    return result.record;
+  });
+  return { records: normalized, changed };
 }
 
 function daysUntil(dateStr) {
@@ -944,6 +991,22 @@ async function upsertRecordRemote(rec) {
   return true;
 }
 
+async function upsertRecordsRemote(recordsToUpsert, context = 'actualizar registros') {
+  if (!runtimeUseSupabase) return true;
+  const rows = (Array.isArray(recordsToUpsert) ? recordsToUpsert : []).map(mapRecordToDb);
+  if (!rows.length) return true;
+  for (const chunk of chunkArray(rows)) {
+    const { error } = await supabaseClient
+      .from(SUPABASE_TABLE_RECORDS)
+      .upsert(chunk, { onConflict: 'id' });
+    if (error) {
+      showSupabaseError(context, error);
+      return false;
+    }
+  }
+  return true;
+}
+
 async function deleteAutotanqueRemote(atId) {
   if (!runtimeUseSupabase) return true;
   const currentAt = autotanques.find(a => a.id === atId);
@@ -1164,7 +1227,7 @@ async function saveComponentRecord() {
     return alert('Ingresa un código/fecha válida o agrega una nota cuando el autotanque no cuenta con la válvula.');
   }
   const fabDate = parsedFab ? parsedFab.iso : '';
-  const replDateAuto = fabDate ? addYears(fabDate, 5) : '';
+  const replDateAuto = fabDate ? addYears(fabDate, REPLACEMENT_YEARS) : '';
   const notesFinal = ensureNoValveTagInNotes(notesText, Boolean(fabDate));
 
   const rec = {
@@ -1503,7 +1566,7 @@ async function bootstrapApp() {
   document.getElementById('editRecFabDate')?.addEventListener('change', e => {
     const replEl = document.getElementById('editRecReplDate');
     if (!replEl) return;
-    if (!replEl.value && e.target.value) replEl.value = addYears(e.target.value, 5);
+    if (!replEl.value && e.target.value) replEl.value = addYears(e.target.value, REPLACEMENT_YEARS);
   });
   syncConfigInputs();
   updateStorageModeLabel();
@@ -1511,6 +1574,23 @@ async function bootstrapApp() {
     const loaded = await loadFromSupabase();
     if (!loaded) updateStorageModeLabel('error de carga, revisa SQL/politicas');
   }
+
+  const policySync = applyReplacementPolicyToRecords(records);
+  if (policySync.changed.length) {
+    records = policySync.records;
+    if (runtimeUseSupabase) {
+      const synced = await upsertRecordsRemote(
+        policySync.changed,
+        `migrar reemplazos automáticos de ${LEGACY_REPLACEMENT_YEARS} a ${REPLACEMENT_YEARS} años`
+      );
+      if (synced) {
+        updateStorageModeLabel(`reemplazos recalculados a ${REPLACEMENT_YEARS} años (${policySync.changed.length} registros)`);
+      }
+    } else {
+      save();
+    }
+  }
+
   populatePlantSelectors();
   refreshSelectedPartImageUI();
   renderPartList();
@@ -1915,7 +1995,7 @@ async function saveRecordEdit() {
 
   const instDate = document.getElementById('editRecInstDate').value || '';
   const replInput = document.getElementById('editRecReplDate').value || '';
-  const replDate = replInput || addYears(fabDate, 5);
+  const replDate = replInput || addYears(fabDate, REPLACEMENT_YEARS);
 
   const updated = {
     ...current,
@@ -2378,6 +2458,8 @@ function handleImport(e) {
       if (!confirm(`¿Importar ${data.autotanques?.length||0} autotanques, ${data.records?.length||0} registros y ${partImagesText}? Esto REEMPLAZARÁ los datos actuales.`)) return;
       autotanques = normalizeAutotanques(data.autotanques || []);
       records     = data.records || [];
+      const policySync = applyReplacementPolicyToRecords(records);
+      records = policySync.records;
       partImages  = hasPartImages ? normalizePartImages(data.partImages || {}) : normalizePartImages(partImages);
       const replaceImagesPayload = hasPartImages ? partImages : null;
       if (runtimeUseSupabase && !(await replaceRemoteData(autotanques, records, replaceImagesPayload))) return;
