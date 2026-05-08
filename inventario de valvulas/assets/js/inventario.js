@@ -11,17 +11,110 @@ const PARTS = [
   { no:"9",  pn:"CAT-09", qty:1, desc:"Valvula de Maximo llenado (3)",            brand:"" },
   { no:"10", pn:"CAT-10", qty:1, desc:"Valvula Interna de 2\"",                   brand:"" },
   { no:"11", pn:"CAT-11", qty:1, desc:"Valvula de Seguridad 3\"",                 brand:"" },
-  { no:"12", pn:"CAT-12", qty:1, desc:"Manguera Modelo 20BHB",                                 brand:"" },
+  { no:"12", pn:"CAT-12", qty:1, desc:"Manguera De Sumistro Modelo 20BHB",        brand:"" },
+  { no:"13", pn:"CAT-13", qty:1, desc:"Sello de Seguridad",                       brand:"" },
 ];
+
+const STATION_PARTS = [
+  { no:"1",  pn:"SERIE 8530", qty:1, corresponde:"Tanques de almacenamiento", desc:"DELTAPORTT", brand:"" },
+  { no:"2",  pn:"SERIE A8560 / A8570", qty:1, corresponde:"Tanques de almacenamiento", desc:"MULTIPORTTM", brand:"" },
+  { no:"3",  pn:"SERIE A3186", qty:1, corresponde:"Tanques de almacenamiento", desc:"VALVULA BACK CHECK", brand:"" },
+  { no:"4",  pn:"SERIE A7500", qty:1, corresponde:"Tanques de almacenamiento", desc:"VALVULA DE ANGULO", brand:"" },
+  { no:"5",  pn:"SERIE 3181", qty:1, corresponde:"Tanques de almacenamiento", desc:"CONECTOR ACME HEMBRA", brand:"" },
+  { no:"6",  pn:"SERIE A7500", qty:1, corresponde:"Tanques de almacenamiento", desc:"VALVULA DE GLOBO", brand:"" },
+  { no:"7",  pn:"SERIE A7790", qty:1, corresponde:"Tanques de almacenamiento", desc:"MIRILLA DE FLUJO", brand:"" },
+  { no:"8",  pn:"SERIE 3127 / SS8000", qty:1, corresponde:"Tanques de almacenamiento", desc:"VALVULA DE ALIVIO HIDROSTATICO", brand:"" },
+  { no:"9",  pn:"SERIE A7500", qty:1, corresponde:"Tanques de almacenamiento", desc:"VALVULA DE GLOBO", brand:"" },
+  { no:"10", pn:"SERIE A7500", qty:1, corresponde:"Tanques de almacenamiento", desc:"VALVULA DE GLOBO", brand:"" },
+  { no:"11", pn:"SERIE A3186", qty:1, corresponde:"Tanques de almacenamiento", desc:"VALVULA BACK CHECK", brand:"" },
+  { no:"12", pn:"SERIE A9090", qty:1, corresponde:"Tanques de almacenamiento", desc:"INDICADOR ROTOGAGE", brand:"" },
+  { no:"13", pn:"SERIE 7534", qty:1, corresponde:"Tanques de almacenamiento", desc:"VALVULA DE SEGURIDAD DE ALIVIO DE PRESION", brand:"" },
+  { no:"14", pn:"SERIE 3127", qty:1, corresponde:"Gabinete", desc:"VALVULA DE ALIVIO HIDROSTATICO", brand:"" },
+  { no:"15", pn:"3272H", qty:1, corresponde:"Gabinete", desc:"VALVULA DE EXCESO DE FLUJO", brand:"" },
+  { no:"16", pn:"SERIE 7590", qty:1, corresponde:"Gabinete", desc:"VALVULA CHECK-LOK", brand:"" }
+];
+
+function stationPartSignature(part) {
+  const desc = String(part?.desc || '').trim().toLowerCase();
+  const pn = String(part?.pn || '').trim().toLowerCase();
+  const corresponde = String(part?.corresponde || '').trim().toLowerCase();
+  return `${desc}|${pn}|${corresponde}`;
+}
+
+function buildUniqueStationParts(parts) {
+  const map = new Map();
+  (Array.isArray(parts) ? parts : []).forEach(part => {
+    const key = stationPartSignature(part);
+    if (!map.has(key)) {
+      map.set(key, {
+        ...part,
+        allNos: [String(part.no || '').trim()]
+      });
+      return;
+    }
+    const current = map.get(key);
+    const currentNo = String(part.no || '').trim();
+    if (currentNo && !current.allNos.includes(currentNo)) current.allNos.push(currentNo);
+  });
+  return Array.from(map.values()).map(p => ({
+    ...p,
+    allNos: p.allNos.sort((a, b) => compareTextNatural(a, b)),
+    no: p.allNos[0],
+    repeats: p.allNos.length
+  }));
+}
+
+const STATION_PARTS_UNIQUE = buildUniqueStationParts(STATION_PARTS);
+
+const ESTACIONES_CARBURACION = [
+  {
+    planta: 'QUERETARO',
+    estaciones: [
+      { nombre: 'QUERO', bombas: ['9001-B018', '9002-B017', '9003-B019', '9004-B020'] },
+      { nombre: 'BANCHIS', bombas: ['9008 B021', '9009-B022', '9010-B023', '9011 B024', '9015 B040', '9016 B041'] },
+      { nombre: 'SOL', bombas: ['9005 B002', '9006-B003', '9007-B004', '9012-B027'] }
+    ]
+  },
+  {
+    planta: 'BALVANERA',
+    estaciones: [
+      { nombre: 'EJIDO LOS ANGELES', bombas: ['BOMBA 1'] },
+      { nombre: 'PEÑA FLOR', bombas: ['BP05', 'BP06', 'BP09', 'BP08'] }
+    ]
+  },
+  {
+    planta: 'GALERAS',
+    estaciones: [
+      { nombre: 'GALERAS', bombas: ['BOMBA 1'] },
+      { nombre: 'EL MARQUEZ', bombas: ['BOMBA 1'] },
+      { nombre: 'EL SAUZ', bombas: ['BOMBA 1'] },
+      { nombre: 'SAN IGNACIO', bombas: ['BOMBA 1'] }
+    ]
+  },
+  {
+    planta: 'PEDRO ESCOBEDO',
+    estaciones: [
+      { nombre: 'PEDRO ESCOBEDO', bombas: ['BOMBA 1'] }
+    ]
+  }
+];
+const STATIONS_STORAGE_KEY = 'at_estaciones';
+const STATION_RECORDS_STORAGE_KEY = 'at_station_records';
 
 // ── STATE ─────────────────────────────────────────────────────────────
 let autotanques = JSON.parse(localStorage.getItem('at_units') || '[]');
 let records     = JSON.parse(localStorage.getItem('at_records') || '[]');
 let partImages  = JSON.parse(localStorage.getItem('at_part_images') || '{}');
+let estaciones  = loadEstaciones();
+let stationRecords = loadStationRecords();
 let selectedPart = null;
 let editingATId  = null;
 let currentDraftATId = null;
 let editingRecordId = null;
+let editingEstacionId = null;
+let expandedAutotanquePlantKey = null;
+let expandedPlantGroupKey = null;
+let expandedStationGroupKey = null;
 let expandedReplGroups = new Set();
 let draftExpedienteDocs = [];
 let pendingExpedienteDeletePaths = [];
@@ -30,6 +123,7 @@ let appBootstrapped = false;
 let authIdleTimer = null;
 let authActivityBound = false;
 let authLogoutInProgress = false;
+let replMatrixColorFilter = '';
 
 const EXPEDIENTE_CATEGORIES = {
   seguro: 'Seguro de la unidad',
@@ -39,14 +133,21 @@ const EXPEDIENTE_CATEGORIES = {
   otro: 'Otro'
 };
 const COMPONENT_GUIDE_IMAGE = 'assets/img/diagrama_componentes_autotanque.png';
+const STATION_COMPONENT_GUIDE_IMAGE = 'assets/img/diagrama_componentes_autotanque.png';
 const PLANTAS_ACTUALES = ['QUERETARO', 'BALVANERA', 'GALERAS', 'PEDRO ESCOBEDO'];
 const MAX_DOC_SIZE_LOCAL_BYTES = 1.5 * 1024 * 1024;
 const MAX_DOC_SIZE_SUPABASE_BYTES = 10 * 1024 * 1024;
 const MAX_PART_IMAGE_SIZE_BYTES = 3 * 1024 * 1024;
+const SECURITY_SEAL_MIN_EVIDENCE_FILES = 15;
+const SECURITY_SEAL_MAX_EVIDENCE_FILES = 20;
 const AUTH_IDLE_TIMEOUT_MINUTES = 15;
 const AUTH_IDLE_TIMEOUT_MS = AUTH_IDLE_TIMEOUT_MINUTES * 60 * 1000;
 const REPLACEMENT_YEARS = 10;
 const LEGACY_REPLACEMENT_YEARS = 5;
+const HOSE_20BHB_MAX_YEARS = 5;
+const HOSE_20BHB_PREVIOUS_YEARS = 7;
+const MATRIX_WARNING_DAYS = 60;
+const UNIT_META_MARKER = '[GEN_UNIT_META]';
 const SB_URL_KEY = 'sb_url';
 const SB_ANON_KEY = 'sb_anon_key';
 const APP_SUPABASE_CONFIG = window.SUPABASE_CONFIG || {};
@@ -58,6 +159,7 @@ const SUPABASE_ANON = HAS_FILE_SUPABASE_CONFIG ? FILE_SUPABASE_ANON : (localStor
 const SUPABASE_TABLE_UNITS = String(APP_SUPABASE_CONFIG.tableUnits || 'at_units').trim() || 'at_units';
 const SUPABASE_TABLE_RECORDS = String(APP_SUPABASE_CONFIG.tableRecords || 'at_records').trim() || 'at_records';
 const SUPABASE_TABLE_PART_IMAGES = String(APP_SUPABASE_CONFIG.tablePartImages || 'at_part_images').trim() || 'at_part_images';
+const SUPABASE_TABLE_STATION_RECORDS = String(APP_SUPABASE_CONFIG.tableStationRecords || 'at_station_records').trim() || 'at_station_records';
 const SUPABASE_BUCKET_EXPEDIENTE = String(APP_SUPABASE_CONFIG.bucketExpediente || 'at_expediente').trim() || 'at_expediente';
 const SUPABASE_ENABLED = Boolean(SUPABASE_URL && SUPABASE_ANON && window.supabase?.createClient);
 const SUPABASE_CONFIG_SOURCE = HAS_FILE_SUPABASE_CONFIG
@@ -65,6 +167,7 @@ const SUPABASE_CONFIG_SOURCE = HAS_FILE_SUPABASE_CONFIG
   : (SUPABASE_ENABLED ? 'localStorage' : 'sin configurar');
 const supabaseClient = SUPABASE_ENABLED ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON) : null;
 let runtimeUseSupabase = SUPABASE_ENABLED;
+let runtimeUseSupabaseStationRecords = SUPABASE_ENABLED;
 const SUPABASE_SETUP_SQL = `
 create table if not exists public.at_units (
   id text primary key,
@@ -105,11 +208,28 @@ create table if not exists public.at_part_images (
   updated_at timestamptz not null default now()
 );
 
+create table if not exists public.at_station_records (
+  id text primary key,
+  station_id text not null,
+  part_no text not null,
+  part_pn text,
+  part_desc text,
+  part_brand text,
+  fab_date date,
+  inst_date date,
+  repl_date date,
+  serial text,
+  brand text,
+  notes text,
+  created_at timestamptz not null default now()
+);
+
 alter table public.at_units add column if not exists planta_actual text;
 
 alter table public.at_units enable row level security;
 alter table public.at_records enable row level security;
 alter table public.at_part_images enable row level security;
+alter table public.at_station_records enable row level security;
 
 drop policy if exists "at_units_all" on public.at_units;
 create policy "at_units_all" on public.at_units
@@ -125,6 +245,12 @@ with check (auth.role() = 'authenticated');
 
 drop policy if exists "at_part_images_all" on public.at_part_images;
 create policy "at_part_images_all" on public.at_part_images
+for all
+using (auth.role() = 'authenticated')
+with check (auth.role() = 'authenticated');
+
+drop policy if exists "at_station_records_all" on public.at_station_records;
+create policy "at_station_records_all" on public.at_station_records
 for all
 using (auth.role() = 'authenticated')
 with check (auth.role() = 'authenticated');
@@ -148,12 +274,16 @@ function save() {
   if (runtimeUseSupabase) {
     // Siempre mantenemos cache local de imagenes por seguridad, aun en modo Supabase.
     try { localStorage.setItem('at_part_images', JSON.stringify(partImages)); } catch {}
+    try { localStorage.setItem(STATIONS_STORAGE_KEY, JSON.stringify(estaciones)); } catch {}
+    try { localStorage.setItem(STATION_RECORDS_STORAGE_KEY, JSON.stringify(stationRecords)); } catch {}
     return true;
   }
   try {
     localStorage.setItem('at_units', JSON.stringify(autotanques));
     localStorage.setItem('at_records', JSON.stringify(records));
     localStorage.setItem('at_part_images', JSON.stringify(partImages));
+    localStorage.setItem(STATIONS_STORAGE_KEY, JSON.stringify(estaciones));
+    localStorage.setItem(STATION_RECORDS_STORAGE_KEY, JSON.stringify(stationRecords));
     return true;
   } catch (err) {
     alert('No se pudo guardar en almacenamiento local. Reduce tamano de archivos del expediente o imagenes e intenta de nuevo.');
@@ -163,6 +293,82 @@ function save() {
 
 // ── UTILS ─────────────────────────────────────────────────────────────
 function genId() { return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
+
+function buildDefaultEstaciones() {
+  const out = [];
+  ESTACIONES_CARBURACION.forEach(block => {
+    const planta = String(block.planta || '').trim();
+    (block.estaciones || []).forEach(est => {
+      const estacion = String(est.nombre || '').trim();
+      (est.bombas || []).forEach(b => {
+        const bomba = String(b || '').trim();
+        const key = `${planta}|${estacion}|${bomba}`;
+        out.push({
+          id: normalizeCsvHeader(key) || genId(),
+          planta,
+          estacion,
+          bomba,
+          expediente: [],
+          componentes: []
+        });
+      });
+    });
+  });
+  return out;
+}
+
+function normalizeEstaciones(list) {
+  if (!Array.isArray(list)) return [];
+  return list.map(row => ({
+    id: String(row?.id || genId()),
+    planta: String(row?.planta || '').trim(),
+    estacion: String(row?.estacion || '').trim(),
+    bomba: String(row?.bomba || '').trim(),
+    expediente: Array.isArray(row?.expediente) ? row.expediente : [],
+    componentes: Array.isArray(row?.componentes) ? row.componentes.map(x => String(x || '').trim()).filter(Boolean) : []
+  })).filter(row => row.planta && row.estacion && row.bomba);
+}
+
+function loadEstaciones() {
+  const raw = localStorage.getItem(STATIONS_STORAGE_KEY);
+  if (!raw) return buildDefaultEstaciones();
+  try {
+    const parsed = JSON.parse(raw);
+    const normalized = normalizeEstaciones(parsed);
+    return normalized.length ? normalized : buildDefaultEstaciones();
+  } catch {
+    return buildDefaultEstaciones();
+  }
+}
+
+function normalizeStationRecords(list) {
+  if (!Array.isArray(list)) return [];
+  return list.map(row => ({
+    id: String(row?.id || genId()),
+    stationId: String(row?.stationId || '').trim(),
+    partNo: String(row?.partNo || '').trim(),
+    partPn: String(row?.partPn || '').trim(),
+    partDesc: String(row?.partDesc || '').trim(),
+    partBrand: String(row?.partBrand || '').trim(),
+    fabDate: String(row?.fabDate || '').trim(),
+    instDate: String(row?.instDate || '').trim(),
+    replDate: String(row?.replDate || '').trim(),
+    serial: String(row?.serial || '').trim(),
+    brand: String(row?.brand || '').trim(),
+    notes: String(row?.notes || '').trim(),
+    createdAt: String(row?.createdAt || new Date().toISOString())
+  })).filter(row => row.stationId && row.partNo);
+}
+
+function loadStationRecords() {
+  const raw = localStorage.getItem(STATION_RECORDS_STORAGE_KEY);
+  if (!raw) return [];
+  try {
+    return normalizeStationRecords(JSON.parse(raw));
+  } catch {
+    return [];
+  }
+}
 
 function compareTextNatural(a, b) {
   return String(a || '').localeCompare(String(b || ''), 'es', { numeric: true, sensitivity: 'base' });
@@ -308,12 +514,16 @@ function updateReplacementFromFabInput() {
     return null;
   }
 
-  replInputEl.value = addYears(parsed.iso, REPLACEMENT_YEARS);
+  const years = getReplacementYearsForPart(selectedPart);
+  replInputEl.value = addYears(parsed.iso, years);
   if (hintEl) {
+    const yearsNote = years === HOSE_20BHB_MAX_YEARS
+      ? `Regla aplicada: <b>${years} años</b> máximo para Manguera Modelo 20BHB.`
+      : `Regla aplicada: <b>${years} años</b>.`;
     if (parsed.type === 'date') {
-      hintEl.innerHTML = `Fecha capturada: <b>${parsed.iso}</b>.`;
+      hintEl.innerHTML = `Fecha capturada: <b>${parsed.iso}</b>. ${yearsNote}`;
     } else {
-      hintEl.innerHTML = `Codigo <b>${parsed.code}</b>: mes ${parsed.month} (${parsed.monthName}), semana ${parsed.weekLetter} (${parsed.week}ra), año ${parsed.year}. Fecha base: <b>${parsed.iso}</b>.`;
+      hintEl.innerHTML = `Codigo <b>${parsed.code}</b>: mes ${parsed.month} (${parsed.monthName}), semana ${parsed.weekLetter} (${parsed.week}ra), año ${parsed.year}. Fecha base: <b>${parsed.iso}</b>. ${yearsNote}`;
     }
   }
   return parsed;
@@ -338,23 +548,52 @@ function addYears(dateStr, years) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
+function isHose20BHBPart(part = {}) {
+  const desc = normalizeMatchText(part?.desc || part?.partDesc || '');
+  const pn = normalizeMatchText(part?.pn || part?.partPn || '');
+  return desc.includes('manguera modelo 20bhb') || pn.includes('20bhb');
+}
+
+function getReplacementYearsForPart(part = {}) {
+  return isHose20BHBPart(part) ? HOSE_20BHB_MAX_YEARS : REPLACEMENT_YEARS;
+}
+
 function applyReplacementPolicyToRecord(rec) {
   const safeRec = { ...(rec || {}) };
   const fabDate = String(safeRec.fabDate || '').trim();
   if (!fabDate) return { record: safeRec, changed: false };
 
-  const repl10 = addYears(fabDate, REPLACEMENT_YEARS);
-  if (!repl10) return { record: safeRec, changed: false };
+  const targetYears = getReplacementYearsForPart({
+    partNo: safeRec.partNo,
+    partPn: safeRec.partPn,
+    partDesc: safeRec.partDesc
+  });
+  const replTarget = addYears(fabDate, targetYears);
+  if (!replTarget) return { record: safeRec, changed: false };
 
   const currentRepl = String(safeRec.replDate || '').trim();
   if (!currentRepl) {
-    safeRec.replDate = repl10;
+    safeRec.replDate = replTarget;
     return { record: safeRec, changed: true };
+  }
+  if (currentRepl === replTarget) {
+    return { record: safeRec, changed: false };
   }
 
   const repl5 = addYears(fabDate, LEGACY_REPLACEMENT_YEARS);
-  if (repl5 && currentRepl === repl5) {
-    safeRec.replDate = repl10;
+  const repl10 = addYears(fabDate, REPLACEMENT_YEARS);
+  const replPrevHose = addYears(fabDate, HOSE_20BHB_PREVIOUS_YEARS);
+  const isHose = isHose20BHBPart({
+    partNo: safeRec.partNo,
+    partPn: safeRec.partPn,
+    partDesc: safeRec.partDesc
+  });
+  if (
+    (repl5 && currentRepl === repl5) ||
+    (targetYears !== REPLACEMENT_YEARS && repl10 && currentRepl === repl10) ||
+    (isHose && replPrevHose && currentRepl === replPrevHose)
+  ) {
+    safeRec.replDate = replTarget;
     return { record: safeRec, changed: true };
   }
 
@@ -400,12 +639,64 @@ function statusKey(days) {
   return 'vigente';
 }
 
+function parseUnitNotesWithMeta(rawNotes) {
+  const text = String(rawNotes || '');
+  const inlineMarkerIndex = text.lastIndexOf(UNIT_META_MARKER);
+  if (inlineMarkerIndex < 0) return { notes: text, meta: {} };
+
+  const notesPart = text.slice(0, inlineMarkerIndex).replace(/\s+$/, '');
+  const metaRaw = text.slice(inlineMarkerIndex + UNIT_META_MARKER.length).trim();
+  if (!metaRaw) return { notes: notesPart, meta: {} };
+
+  try {
+    const parsed = JSON.parse(metaRaw);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return { notes: notesPart, meta: {} };
+    }
+    return { notes: notesPart, meta: parsed };
+  } catch {
+    return { notes: text, meta: {} };
+  }
+}
+
+function buildUnitMetaPayload(at) {
+  return {
+    activo: Boolean(at?.activo),
+    enServicio: Boolean(at?.enServicio),
+    marcaUnidad: String(at?.marcaUnidad || '').trim(),
+    modeloUnidad: String(at?.modeloUnidad || '').trim(),
+    dictamenNomMes: String(at?.dictamenNomMes || '').trim(),
+    dictamenNomAnio: String(at?.dictamenNomAnio || '').trim(),
+    registroSener: String(at?.registroSener || '').trim(),
+    noRegTagSener: String(at?.noRegTagSener || '').trim()
+  };
+}
+
+function stringifyUnitNotesWithMeta(notes, at) {
+  const cleanNotes = String(notes || '').trim();
+  const metaText = JSON.stringify(buildUnitMetaPayload(at));
+  return `${cleanNotes}${cleanNotes ? '\n' : ''}${UNIT_META_MARKER}${metaText}`;
+}
+
 function normalizeAutotanques(list) {
-  return (Array.isArray(list) ? list : []).map(at => ({
-    ...at,
-    plantaActual: normalizePlantName(at.plantaActual || at.planta_actual || ''),
-    expediente: normalizeExpediente(at.expediente)
-  }));
+  return (Array.isArray(list) ? list : []).map(at => {
+    const parsed = parseUnitNotesWithMeta(at?.notas || '');
+    const meta = parsed.meta || {};
+    return {
+      ...at,
+      plantaActual: normalizePlantName(at?.plantaActual || at?.planta_actual || ''),
+      activo: typeof at?.activo === 'boolean' ? at.activo : (typeof meta?.activo === 'boolean' ? meta.activo : true),
+      enServicio: typeof at?.enServicio === 'boolean' ? at.enServicio : (typeof meta?.enServicio === 'boolean' ? meta.enServicio : true),
+      marcaUnidad: String(at?.marcaUnidad || meta?.marcaUnidad || '').trim(),
+      modeloUnidad: String(at?.modeloUnidad || meta?.modeloUnidad || '').trim(),
+      dictamenNomMes: String(at?.dictamenNomMes || meta?.dictamenNomMes || '').trim(),
+      dictamenNomAnio: String(at?.dictamenNomAnio || meta?.dictamenNomAnio || '').trim(),
+      registroSener: String(at?.registroSener || meta?.registroSener || '').trim(),
+      noRegTagSener: String(at?.noRegTagSener || meta?.noRegTagSener || '').trim(),
+      notas: parsed.notes,
+      expediente: normalizeExpediente(at?.expediente)
+    };
+  });
 }
 
 function normalizePartImages(raw) {
@@ -449,16 +740,22 @@ function mapPartImageFromDb(row) {
 }
 
 function getPartImage(partNo) {
-  const key = String(partNo || '').trim();
+  const targetType = getRegistroTargetType();
+  const partNoRaw = String(partNo || '').trim();
+  const key = targetType === 'estacion' ? `estacion:${partNoRaw}` : partNoRaw;
   if (!key) return null;
-  const img = partImages[key];
+  let img = partImages[key];
+  // Compatibilidad hacia atras para imagenes antiguas de autotanque guardadas con la llave simple.
+  if (!img && targetType !== 'estacion') img = partImages[partNoRaw];
   if (!img || typeof img !== 'object' || !img.dataUrl) return null;
   return img;
 }
 
 function getPartImageSrc(partNo) {
   const img = getPartImage(partNo);
-  return img?.dataUrl || COMPONENT_GUIDE_IMAGE;
+  const targetType = getRegistroTargetType();
+  const baseImg = targetType === 'estacion' ? STATION_COMPONENT_GUIDE_IMAGE : COMPONENT_GUIDE_IMAGE;
+  return img?.dataUrl || baseImg;
 }
 
 function setImageWithFallback(imgEl, src, fallbackTextEl) {
@@ -494,9 +791,12 @@ function refreshSelectedPartImageUI() {
     statusEl.textContent = 'Selecciona una pieza para administrar su imagen.';
     return;
   }
+  const targetType = getRegistroTargetType();
   const img = getPartImage(partNo);
   if (!img) {
-    statusEl.textContent = 'Esta pieza usa la imagen guía general.';
+    statusEl.textContent = targetType === 'estacion'
+      ? 'Esta pieza de estación usa la imagen guía general.'
+      : 'Esta pieza usa la imagen guía general.';
     return;
   }
   const updatedAtTxt = img.updatedAt ? formatDateTime(img.updatedAt) : 'Sin fecha';
@@ -604,12 +904,14 @@ function mapUnitToDb(at) {
     serie_tanque: at.serieTanque || null,
     capacidad: at.capacidad || null,
     anio: at.anio || null,
-    notas: at.notas || null,
+    notas: stringifyUnitNotesWithMeta(at.notas, at) || null,
     expediente: normalizeExpediente(at.expediente)
   };
 }
 
 function mapUnitFromDb(row) {
+  const parsed = parseUnitNotesWithMeta(row.notas || '');
+  const meta = parsed.meta || {};
   return {
     id: row.id,
     econ: row.econ || '',
@@ -619,7 +921,15 @@ function mapUnitFromDb(row) {
     serieTanque: row.serie_tanque || '',
     capacidad: row.capacidad || '',
     anio: row.anio || '',
-    notas: row.notas || '',
+    activo: typeof meta.activo === 'boolean' ? meta.activo : true,
+    enServicio: typeof meta.enServicio === 'boolean' ? meta.enServicio : true,
+    marcaUnidad: String(meta.marcaUnidad || '').trim(),
+    modeloUnidad: String(meta.modeloUnidad || '').trim(),
+    dictamenNomMes: String(meta.dictamenNomMes || '').trim(),
+    dictamenNomAnio: String(meta.dictamenNomAnio || '').trim(),
+    registroSener: String(meta.registroSener || '').trim(),
+    noRegTagSener: String(meta.noRegTagSener || '').trim(),
+    notas: parsed.notes,
     expediente: normalizeExpediente(row.expediente)
   };
 }
@@ -646,6 +956,42 @@ function mapRecordFromDb(row) {
   return {
     id: row.id,
     atId: row.at_id,
+    partNo: row.part_no || '',
+    partPn: row.part_pn || '',
+    partDesc: row.part_desc || '',
+    partBrand: row.part_brand || '',
+    fabDate: row.fab_date || '',
+    instDate: row.inst_date || '',
+    replDate: row.repl_date || '',
+    serial: row.serial || '',
+    brand: row.brand || '',
+    notes: row.notes || '',
+    createdAt: row.created_at || new Date().toISOString()
+  };
+}
+
+function mapStationRecordToDb(rec) {
+  return {
+    id: rec.id,
+    station_id: rec.stationId,
+    part_no: rec.partNo,
+    part_pn: rec.partPn || null,
+    part_desc: rec.partDesc || null,
+    part_brand: rec.partBrand || null,
+    fab_date: rec.fabDate || null,
+    inst_date: rec.instDate || null,
+    repl_date: rec.replDate || null,
+    serial: rec.serial || null,
+    brand: rec.brand || null,
+    notes: rec.notes || null,
+    created_at: rec.createdAt || new Date().toISOString()
+  };
+}
+
+function mapStationRecordFromDb(row) {
+  return {
+    id: row.id,
+    stationId: row.station_id || '',
     partNo: row.part_no || '',
     partPn: row.part_pn || '',
     partDesc: row.part_desc || '',
@@ -748,6 +1094,12 @@ function isMissingPartImagesTableError(error) {
   return (detail.includes(tableName) || detail.includes('at_part_images')) && (detail.includes('does not exist') || detail.includes('schema cache'));
 }
 
+function isMissingStationRecordsTableError(error) {
+  const detail = `${error?.message || ''} ${error?.details || ''} ${error?.hint || ''}`.toLowerCase();
+  const tableName = String(SUPABASE_TABLE_STATION_RECORDS || 'at_station_records').toLowerCase();
+  return (detail.includes(tableName) || detail.includes('at_station_records')) && (detail.includes('does not exist') || detail.includes('schema cache'));
+}
+
 function isStorageBucketError(error) {
   const detail = `${error?.message || ''} ${error?.details || ''} ${error?.hint || ''}`.toLowerCase();
   const bucket = String(SUPABASE_BUCKET_EXPEDIENTE || 'at_expediente').toLowerCase();
@@ -777,6 +1129,12 @@ function showSupabaseError(context, error) {
       'Ejecuta el SQL de configuracion para crear la tabla y politicas, recarga y vuelve a intentar.'
     );
   }
+  if (isMissingStationRecordsTableError(error)) {
+    return alert(
+      `Error en Supabase: falta la tabla ${SUPABASE_TABLE_STATION_RECORDS}.\n\n` +
+      'Ejecuta el SQL de configuracion para crearla y recarga la pagina.'
+    );
+  }
   if (isStorageBucketError(error)) {
     return alert(
       `Error en Supabase Storage (${SUPABASE_BUCKET_EXPEDIENTE}).\n\n` +
@@ -790,6 +1148,7 @@ function showSupabaseError(context, error) {
 async function loadFromSupabase() {
   if (!runtimeUseSupabase) return true;
   const localPartImagesCache = normalizePartImages(JSON.parse(localStorage.getItem('at_part_images') || '{}'));
+  const localStationRecordsCache = normalizeStationRecords(JSON.parse(localStorage.getItem(STATION_RECORDS_STORAGE_KEY) || '[]'));
   const { data: unitRows, error: unitsError } = await supabaseClient
     .from(SUPABASE_TABLE_UNITS)
     .select('*')
@@ -817,6 +1176,29 @@ async function loadFromSupabase() {
     showSupabaseError('carga de imagenes de piezas', partImagesError);
   }
 
+  let stationRecordRows = [];
+  if (runtimeUseSupabaseStationRecords) {
+    const { data, error } = await supabaseClient
+      .from(SUPABASE_TABLE_STATION_RECORDS)
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (error) {
+      if (isMissingStationRecordsTableError(error)) {
+        runtimeUseSupabaseStationRecords = false;
+        updateStorageModeLabel(`tabla ${SUPABASE_TABLE_STATION_RECORDS} no existe; registros de estaciones solo local`);
+      } else {
+        runtimeUseSupabaseStationRecords = false;
+        showSupabaseError('carga de registros de estaciones', error);
+      }
+      stationRecords = localStationRecordsCache;
+    } else {
+      stationRecordRows = data || [];
+      stationRecords = normalizeStationRecords(stationRecordRows.map(mapStationRecordFromDb));
+    }
+  } else {
+    stationRecords = localStationRecordsCache;
+  }
+
   autotanques = normalizeAutotanques((unitRows || []).map(mapUnitFromDb));
   records = (recordRows || []).map(mapRecordFromDb);
   if (!partImagesError) {
@@ -839,6 +1221,9 @@ async function loadFromSupabase() {
       // Preferimos lo remoto, pero mantenemos cualquier imagen local faltante.
       partImages = normalizePartImages({ ...localPartImagesCache, ...remotePartImages });
     }
+  }
+  if (!runtimeUseSupabaseStationRecords) {
+    stationRecords = localStationRecordsCache;
   }
   save();
   return true;
@@ -1045,7 +1430,41 @@ async function deleteRecordRemote(recordId) {
   return true;
 }
 
-async function replaceRemoteData(allUnits, allRecords, allPartImages = null) {
+async function insertStationRecordRemote(rec) {
+  if (!runtimeUseSupabase || !runtimeUseSupabaseStationRecords) return true;
+  const { error } = await supabaseClient
+    .from(SUPABASE_TABLE_STATION_RECORDS)
+    .insert([mapStationRecordToDb(rec)]);
+  if (error) {
+    if (isMissingStationRecordsTableError(error)) {
+      runtimeUseSupabaseStationRecords = false;
+      updateStorageModeLabel(`tabla ${SUPABASE_TABLE_STATION_RECORDS} no existe; registros de estaciones solo local`);
+      return true;
+    }
+    showSupabaseError('guardar componente de estación', error);
+    return false;
+  }
+  return true;
+}
+
+async function deleteStationRecordsByStationRemote(stationId) {
+  if (!runtimeUseSupabase || !runtimeUseSupabaseStationRecords) return true;
+  const { error } = await supabaseClient
+    .from(SUPABASE_TABLE_STATION_RECORDS)
+    .delete()
+    .eq('station_id', stationId);
+  if (error) {
+    if (isMissingStationRecordsTableError(error)) {
+      runtimeUseSupabaseStationRecords = false;
+      return true;
+    }
+    showSupabaseError('eliminar registros de estación', error);
+    return false;
+  }
+  return true;
+}
+
+async function replaceRemoteData(allUnits, allRecords, allPartImages = null, allStationRecords = null) {
   if (!runtimeUseSupabase) return true;
 
   const { error: delRecordsErr } = await supabaseClient
@@ -1074,6 +1493,20 @@ async function replaceRemoteData(allUnits, allRecords, allPartImages = null) {
     if (delPartImagesErr) {
       showSupabaseError('limpiar imagenes de piezas en Supabase', delPartImagesErr);
       return false;
+    }
+  }
+
+  if (allStationRecords !== null && runtimeUseSupabaseStationRecords) {
+    const { error: delStationRecordsErr } = await supabaseClient
+      .from(SUPABASE_TABLE_STATION_RECORDS)
+      .delete()
+      .not('id', 'is', null);
+    if (delStationRecordsErr) {
+      if (!isMissingStationRecordsTableError(delStationRecordsErr)) {
+        showSupabaseError('limpiar registros de estaciones en Supabase', delStationRecordsErr);
+        return false;
+      }
+      runtimeUseSupabaseStationRecords = false;
     }
   }
 
@@ -1108,21 +1541,358 @@ async function replaceRemoteData(allUnits, allRecords, allPartImages = null) {
     }
   }
 
+  if (allStationRecords !== null && runtimeUseSupabaseStationRecords) {
+    const stationRows = normalizeStationRecords(allStationRecords).map(mapStationRecordToDb);
+    for (const chunk of chunkArray(stationRows)) {
+      const { error } = await supabaseClient.from(SUPABASE_TABLE_STATION_RECORDS).insert(chunk);
+      if (error) {
+        if (!isMissingStationRecordsTableError(error)) {
+          showSupabaseError('importar registros de estaciones en Supabase', error);
+          return false;
+        }
+        runtimeUseSupabaseStationRecords = false;
+        break;
+      }
+    }
+  }
+
   return true;
 }
 
 // ── TABS ──────────────────────────────────────────────────────────────
 function switchTab(id) {
   document.querySelectorAll('.tab-btn').forEach((b,i) => {
-    const tabs = ['dashboard','autotanques','registro','reemplazos','exportar'];
+    const tabs = ['dashboard','autotanques','estaciones','registro','reemplazos','exportar'];
     b.classList.toggle('active', tabs[i] === id);
   });
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
   document.getElementById('tab-'+id).classList.add('active');
   if (id === 'dashboard')   renderDashboard();
   if (id === 'autotanques') renderAutotanques();
-  if (id === 'registro')    renderPartList(); populateATSelect(); refreshSelectedPartImageUI();
+  if (id === 'estaciones')  renderEstaciones();
+  if (id === 'registro')    renderPartList(); populateATSelect(); populateStationSelectForRegistro(); toggleRegistroTarget(); refreshSelectedPartImageUI();
   if (id === 'reemplazos')  renderReemplazos();
+}
+
+function getRegistroTargetType() {
+  return document.getElementById('formTargetType')?.value || 'autotanque';
+}
+
+function getCurrentPartsCatalog() {
+  return getRegistroTargetType() === 'estacion' ? STATION_PARTS_UNIQUE : PARTS;
+}
+
+function normalizeMatchText(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
+function isSecuritySealPart(part) {
+  const desc = normalizeMatchText(part?.desc || '');
+  return desc.includes('sello de seguridad');
+}
+
+function mustCaptureSecuritySealEvidence() {
+  return getRegistroTargetType() === 'autotanque' && isSecuritySealPart(selectedPart);
+}
+
+function getSecuritySealEvidenceFiles() {
+  const input = document.getElementById('formSealEvidence');
+  return Array.from(input?.files || []);
+}
+
+function updateSecuritySealEvidenceUI() {
+  const wrap = document.getElementById('formSealEvidenceWrap');
+  const hint = document.getElementById('formSealEvidenceHint');
+  const input = document.getElementById('formSealEvidence');
+  if (!wrap || !hint || !input) return;
+
+  const required = mustCaptureSecuritySealEvidence();
+  wrap.style.display = required ? 'block' : 'none';
+  const filesCount = getSecuritySealEvidenceFiles().length;
+
+  if (required) {
+    hint.textContent = `Requerido para Sello de seguridad: adjunta entre ${SECURITY_SEAL_MIN_EVIDENCE_FILES} y ${SECURITY_SEAL_MAX_EVIDENCE_FILES} evidencias. Seleccionados: ${filesCount}.`;
+    return;
+  }
+
+  input.value = '';
+  hint.textContent = 'Este requisito aplica solo al componente "Sello de seguridad" en autotanques.';
+}
+
+function getStationPartsCount() {
+  return STATION_PARTS_UNIQUE.length;
+}
+
+function getStationRecordsByStationId(stationId) {
+  return stationRecords.filter(rec => rec.stationId === stationId);
+}
+
+function getStationComponentList(stationId, fallbackComponents = []) {
+  const fromRecords = getStationRecordsByStationId(stationId)
+    .map(rec => rec.partDesc || (rec.partNo ? `Pieza ${rec.partNo}` : ''))
+    .filter(Boolean);
+  return [...new Set([...(Array.isArray(fallbackComponents) ? fallbackComponents : []), ...fromRecords])];
+}
+
+function renderEstaciones() {
+  const tbody = document.getElementById('tableEstaciones');
+  if (!tbody) return;
+
+  const search = (document.getElementById('searchEst')?.value || '').trim().toLowerCase();
+  const selectedPlant = String(document.getElementById('filterEstPlant')?.value || '').trim();
+
+  let rows = normalizeEstaciones(estaciones).map(r => ({ ...r }));
+
+  if (selectedPlant) rows = rows.filter(r => r.planta === selectedPlant);
+  if (search) {
+    rows = rows.filter(r =>
+      r.planta.toLowerCase().includes(search) ||
+      r.estacion.toLowerCase().includes(search) ||
+      r.bomba.toLowerCase().includes(search)
+    );
+  }
+
+  rows.sort((a, b) =>
+    compareTextNatural(a.planta, b.planta) ||
+    compareTextNatural(a.estacion, b.estacion) ||
+    compareTextNatural(a.bomba, b.bomba)
+  );
+
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:30px">Sin estaciones registradas para el filtro actual.</td></tr>';
+    return;
+  }
+
+  const groupsMap = new Map();
+  rows.forEach(r => {
+    const key = encodeURIComponent(`${r.planta}||${r.estacion}`);
+    if (!groupsMap.has(key)) groupsMap.set(key, { key, planta: r.planta, estacion: r.estacion, rows: [] });
+    groupsMap.get(key).rows.push(r);
+  });
+
+  const groups = Array.from(groupsMap.values()).sort((a, b) =>
+    compareTextNatural(a.planta, b.planta) ||
+    compareTextNatural(a.estacion, b.estacion)
+  );
+
+  const plantsMap = new Map();
+  groups.forEach(group => {
+    if (!plantsMap.has(group.planta)) plantsMap.set(group.planta, []);
+    plantsMap.get(group.planta).push(group);
+  });
+
+  const plantBlocks = Array.from(plantsMap.entries()).sort((a, b) => compareTextNatural(a[0], b[0]));
+
+  tbody.innerHTML = plantBlocks.map(([planta, stationGroups]) => {
+    const plantKey = encodeURIComponent(planta);
+    const isPlantExpanded = expandedPlantGroupKey === plantKey;
+    const stationGroupsSorted = [...stationGroups].sort((a, b) => compareTextNatural(a.estacion, b.estacion));
+    const totalBombasPlant = stationGroupsSorted.reduce((acc, g) => acc + g.rows.length, 0);
+    const totalCompPlant = stationGroupsSorted.reduce((acc, g) => acc + g.rows.reduce((sub, r) => sub + getStationComponentList(r.id, r.componentes).length, 0), 0);
+    const plantRow = `
+      <tr>
+        <td colspan="6" class="plant-group-row bg-slate-50">
+          <button class="station-group-toggle" type="button" onclick="togglePlantGroup('${plantKey}')">
+            <span class="accordion-chevron ${isPlantExpanded ? 'expanded' : ''}">▶</span>
+            <b style="color:var(--accent)">${escapeHtml(planta)}</b>
+            <span style="color:var(--muted); font-size:11px">${stationGroupsSorted.length} estacion(es) | ${totalBombasPlant} bomba(s) | ${totalCompPlant} componente(s)</span>
+          </button>
+        </td>
+      </tr>
+    `;
+
+    if (!isPlantExpanded) return plantRow;
+
+    const stationRows = stationGroupsSorted.map(group => {
+      const expanded = expandedStationGroupKey === group.key;
+      const bombas = group.rows.length;
+      const bombasActivas = group.rows.filter(r => getStationComponentList(r.id, r.componentes).length > 0).length;
+      const totalComponentes = group.rows.reduce((acc, r) => acc + getStationComponentList(r.id, r.componentes).length, 0);
+      const totalEsperado = bombas * getStationPartsCount();
+      const pctGrupo = totalEsperado ? Math.min(100, Math.round((totalComponentes / totalEsperado) * 100)) : 0;
+      const pctClassGrupo = pctGrupo < 50 ? 'danger' : pctGrupo < 85 ? 'warn' : '';
+
+      const detailsHtml = expanded
+        ? group.rows.map(r => {
+          const comps = getStationComponentList(r.id, r.componentes);
+          return `
+          <tr>
+            <td></td>
+            <td style="color:var(--muted)">↳ ${escapeHtml(r.estacion)}</td>
+            <td style="font-family:monospace">${escapeHtml(r.bomba)}</td>
+            <td class="progress-cell">
+              <div class="prog-bar"><div class="prog-fill ${comps.length < 6 ? 'danger' : comps.length < 10 ? 'warn' : ''}" style="width:${Math.min(100, Math.round((comps.length / getStationPartsCount()) * 100))}%"></div></div>
+              <span style="font-size:11px">${comps.length}/${getStationPartsCount()}</span>
+            </td>
+            <td>${comps.length ? '<span class="badge badge-ok">ACTIVO</span>' : '<span class="badge badge-none">SIN REGISTROS</span>'}</td>
+            <td>
+              <div class="flex-gap">
+                <button class="btn btn-secondary" style="padding:5px 10px;font-size:11px" onclick="openEstacionView('${r.id}')">VER</button>
+                <button class="btn btn-secondary" style="padding:5px 10px;font-size:11px" onclick="openEstacionEdit('${r.id}')">✏️</button>
+                <button class="btn btn-danger" style="padding:5px 10px;font-size:11px" onclick="deleteEstacion('${r.id}')">🗑</button>
+              </div>
+            </td>
+          </tr>
+        `;}).join('')
+        : '';
+
+      return `
+        <tr>
+          <td></td>
+          <td style="background:var(--surface2); border-top:1px solid var(--border); border-bottom:1px solid var(--border);">
+            <button class="station-group-toggle" type="button" onclick="toggleEstacionGroup('${plantKey}','${group.key}')">
+              <span class="accordion-chevron ${expanded ? 'expanded' : ''}">▶</span>
+              <b style="color:var(--accent)">${escapeHtml(group.estacion)}</b>
+            </button>
+          </td>
+          <td style="background:var(--surface2); border-top:1px solid var(--border); border-bottom:1px solid var(--border); font-family:monospace">
+            ${bombas} bomba(s)
+          </td>
+          <td class="progress-cell" style="background:var(--surface2); border-top:1px solid var(--border); border-bottom:1px solid var(--border);">
+            <div class="prog-bar"><div class="prog-fill ${pctClassGrupo}" style="width:${pctGrupo}%"></div></div>
+            <span style="font-size:11px">${totalComponentes}/${totalEsperado}</span>
+          </td>
+          <td style="background:var(--surface2); border-top:1px solid var(--border); border-bottom:1px solid var(--border);">
+            <span class="text-muted">${bombasActivas}/${bombas} activas</span>
+          </td>
+          <td style="background:var(--surface2); border-top:1px solid var(--border); border-bottom:1px solid var(--border);">
+            <button class="btn btn-secondary" style="padding:5px 10px;font-size:11px" onclick="toggleEstacionGroup('${plantKey}','${group.key}')">${expanded ? 'OCULTAR BOMBAS' : 'VER BOMBAS'}</button>
+          </td>
+        </tr>
+        ${detailsHtml}
+      `;
+    }).join('');
+
+    return `${plantRow}${stationRows}`;
+  }).join('');
+}
+
+function togglePlantGroup(plantKey) {
+  if (!plantKey) return;
+  if (expandedPlantGroupKey === plantKey) {
+    expandedPlantGroupKey = null;
+    expandedStationGroupKey = null;
+  } else {
+    expandedPlantGroupKey = plantKey;
+    expandedStationGroupKey = null;
+  }
+  renderEstaciones();
+}
+
+function toggleEstacionGroup(plantKey, stationKey) {
+  if (!plantKey || !stationKey) return;
+  if (expandedPlantGroupKey !== plantKey) expandedPlantGroupKey = plantKey;
+  expandedStationGroupKey = expandedStationGroupKey === stationKey ? null : stationKey;
+  renderEstaciones();
+}
+
+function openEstacionView(id) {
+  const st = estaciones.find(x => x.id === id);
+  if (!st) return alert('No se encontró la estación.');
+  const componentes = getStationComponentList(st.id, st.componentes);
+  const stationRecs = getStationRecordsByStationId(st.id).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  const body = document.getElementById('modalEstacionViewBody');
+  if (!body) return;
+
+  body.innerHTML = `
+    <div class="grid-2" style="margin-bottom:16px">
+      <div class="detail-row"><span class="detail-key">PLANTA:</span><span class="detail-val">${escapeHtml(st.planta)}</span></div>
+      <div class="detail-row"><span class="detail-key">ESTACIÓN:</span><span class="detail-val">${escapeHtml(st.estacion)}</span></div>
+      <div class="detail-row"><span class="detail-key">NÚMERO DE BOMBA:</span><span class="detail-val">${escapeHtml(st.bomba)}</span></div>
+      <div class="detail-row"><span class="detail-key">COMPONENTES:</span><span class="detail-val">${componentes.length}/${getStationPartsCount()}</span></div>
+    </div>
+    <div class="section-sep"></div>
+    <div class="card-title">COMPONENTES DE LA ESTACIÓN</div>
+    <div class="table-wrap" style="max-height:300px;overflow-y:auto">
+      <table>
+        <thead><tr><th>#</th><th>DESCRIPCIÓN</th></tr></thead>
+        <tbody>
+          ${componentes.length
+            ? componentes.map((c, i) => `<tr><td style="font-family:monospace">${i + 1}</td><td>${escapeHtml(c)}</td></tr>`).join('')
+            : '<tr><td colspan="2" style="text-align:center;color:var(--muted);padding:20px">Sin componentes registrados</td></tr>'
+          }
+        </tbody>
+      </table>
+    </div>
+    <div class="section-sep"></div>
+    <div class="card-title">REGISTROS CAPTURADOS (${stationRecs.length})</div>
+    <div class="table-wrap" style="max-height:260px;overflow-y:auto">
+      <table>
+        <thead><tr><th>PIEZA</th><th>DESCRIPCIÓN</th><th>F.FAB</th><th>F.REEMPLAZO</th><th>NOTAS</th></tr></thead>
+        <tbody>
+          ${stationRecs.length
+            ? stationRecs.map(rec => `
+              <tr>
+                <td style="font-family:monospace;color:var(--accent)">${escapeHtml(rec.partNo || '—')}</td>
+                <td>${escapeHtml(rec.partDesc || '—')}</td>
+                <td>${formatDate(rec.fabDate)}</td>
+                <td>${formatDate(rec.replDate)}</td>
+                <td style="font-size:11px; white-space:pre-wrap; overflow-wrap:anywhere">${escapeHtml(rec.notes || '—')}</td>
+              </tr>
+            `).join('')
+            : '<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:20px">Sin registros capturados</td></tr>'
+          }
+        </tbody>
+      </table>
+    </div>
+  `;
+  document.getElementById('modalEstacionView').classList.add('open');
+}
+
+function openEstacionEdit(id) {
+  const st = estaciones.find(x => x.id === id);
+  if (!st) return alert('No se encontró la estación.');
+  editingEstacionId = id;
+  document.getElementById('editEstPlanta').value = st.planta || '';
+  document.getElementById('editEstNombre').value = st.estacion || '';
+  document.getElementById('editEstBomba').value = st.bomba || '';
+  document.getElementById('editEstComponentes').value = (st.componentes || []).join('\n');
+  document.getElementById('modalEstacionEdit').classList.add('open');
+}
+
+function saveEstacionEdit() {
+  if (!editingEstacionId) return alert('No hay estación seleccionada para editar.');
+  const idx = estaciones.findIndex(x => x.id === editingEstacionId);
+  if (idx < 0) return alert('No se encontró la estación a actualizar.');
+
+  const planta = String(document.getElementById('editEstPlanta').value || '').trim();
+  const estacion = String(document.getElementById('editEstNombre').value || '').trim();
+  const bomba = String(document.getElementById('editEstBomba').value || '').trim();
+  const componentesRaw = String(document.getElementById('editEstComponentes').value || '');
+  const componentes = componentesRaw
+    .split('\n')
+    .map(x => x.trim())
+    .filter(Boolean);
+
+  if (!planta || !estacion || !bomba) return alert('Planta, estación y número de bomba son obligatorios.');
+
+  estaciones[idx] = {
+    ...estaciones[idx],
+    planta,
+    estacion,
+    bomba,
+    componentes
+  };
+  save();
+  closeModal('modalEstacionEdit');
+  renderEstaciones();
+  renderDashboard();
+}
+
+async function deleteEstacion(id) {
+  const st = estaciones.find(x => x.id === id);
+  if (!st) return alert('No se encontró la estación.');
+  if (!confirm(`¿Eliminar la estación ${st.estacion} (${st.bomba}) de ${st.planta}?`)) return;
+  if (!(await deleteStationRecordsByStationRemote(id))) return;
+  stationRecords = stationRecords.filter(rec => rec.stationId !== id);
+  estaciones = estaciones.filter(x => x.id !== id);
+  save();
+  renderEstaciones();
+  renderDashboard();
 }
 
 function getPlantCatalog() {
@@ -1147,6 +1917,8 @@ function populatePlantSelectors() {
   const plants = getPlantCatalog();
   fillPlantSelect('atPlantaActual', '— Seleccionar planta —', plants);
   fillPlantSelect('filterATPlant', 'Todas las plantas', plants);
+  fillPlantSelect('filterEstPlant', 'Todas las plantas', plants);
+  fillPlantSelect('dashPlantFilter', 'Todas las plantas', plants);
   fillPlantSelect('normPlantSelect', '— Seleccionar planta —', plants);
 }
 
@@ -1154,14 +1926,19 @@ function populatePlantSelectors() {
 function renderPartList() {
   const q = (document.getElementById('searchPart')?.value || '').toLowerCase();
   const list = document.getElementById('partList');
-  list.innerHTML = PARTS.filter(p =>
-    p.desc.toLowerCase().includes(q) || p.no.includes(q) || p.pn.toLowerCase().includes(q)
+  const catalog = getCurrentPartsCatalog();
+  list.innerHTML = catalog.filter(p =>
+    p.desc.toLowerCase().includes(q) ||
+    p.no.includes(q) ||
+    String(p.pn || '').toLowerCase().includes(q) ||
+    String(p.corresponde || '').toLowerCase().includes(q) ||
+    String((p.allNos || []).join(',')).toLowerCase().includes(q)
   ).map(p => `
     <div class="part-item ${selectedPart?.no===p.no?'selected':''}" onclick="selectPart('${p.no}')">
       <span class="part-no">${p.no}</span>
       <div>
         <div class="part-desc">${p.desc}</div>
-        <div class="part-pn">${p.pn}</div>
+        <div class="part-pn">${p.pn}${p.corresponde ? ` | ${p.corresponde}` : ''}${p.repeats > 1 ? ` | x${p.repeats}` : ''}</div>
       </div>
     </div>
   `).join('');
@@ -1170,12 +1947,16 @@ function renderPartList() {
 function filterParts() { renderPartList(); }
 
 function selectPart(no) {
-  selectedPart = PARTS.find(p => p.no === no);
+  selectedPart = getCurrentPartsCatalog().find(p => p.no === no);
+  if (!selectedPart) return;
   renderPartList();
 
-  // Show preview card
+  const targetType = getRegistroTargetType();
+  // Show preview card for both catalogs
   const card = document.getElementById('partPreviewCard');
   card.style.display = 'block';
+  const highlight = document.getElementById('diagramHighlight');
+  if (highlight) highlight.style.display = 'none';
 
   // Diagram image — we embed the uploaded diagram as the base
   const img = document.getElementById('diagramImg');
@@ -1187,6 +1968,8 @@ function selectPart(no) {
     <div class="detail-row"><span class="detail-key">PIEZA No.:</span><span class="detail-val">${selectedPart.no}</span></div>
     <div class="detail-row"><span class="detail-key">NÚMERO DE PARTE:</span><span class="detail-val">${selectedPart.pn}</span></div>
     <div class="detail-row"><span class="detail-key">DESCRIPCIÓN:</span><span class="detail-val">${selectedPart.desc}</span></div>
+    <div class="detail-row"><span class="detail-key">CORRESPONDE:</span><span class="detail-val">${selectedPart.corresponde || 'Autotanque'}</span></div>
+    <div class="detail-row"><span class="detail-key">PIEZAS RELACIONADAS:</span><span class="detail-val">${selectedPart.repeats > 1 ? selectedPart.allNos.join(', ') : 'Sin repetición'}</span></div>
     <div class="detail-row"><span class="detail-key">MARCA:</span><span class="detail-val">${selectedPart.brand||'—'}</span></div>
     <div class="detail-row"><span class="detail-key">CANTIDAD POR UNIDAD:</span><span class="detail-val">${selectedPart.qty}</span></div>
   `;
@@ -1195,8 +1978,9 @@ function selectPart(no) {
   document.getElementById('selectedPartInfo').style.display = 'block';
   document.getElementById('selectedPartText').innerHTML = `
     <b style="color:var(--accent)">Pieza ${selectedPart.no}</b> — ${selectedPart.desc}<br>
-    <span class="part-pn">${selectedPart.pn}</span>
+    <span class="part-pn">${selectedPart.pn}${selectedPart.corresponde ? ` | ${selectedPart.corresponde}` : ''}${selectedPart.repeats > 1 ? ` | x${selectedPart.repeats}` : ''}</span>
   `;
+  updateSecuritySealEvidenceUI();
   refreshSelectedPartImageUI();
 }
 
@@ -1215,23 +1999,119 @@ function populateATSelect() {
   });
 }
 
+function populateStationSelectForRegistro() {
+  const sel = document.getElementById('formStation');
+  if (!sel) return;
+  const sorted = normalizeEstaciones(estaciones)
+    .sort((a, b) =>
+      compareTextNatural(a.planta, b.planta) ||
+      compareTextNatural(a.estacion, b.estacion) ||
+      compareTextNatural(a.bomba, b.bomba)
+    );
+  sel.innerHTML = '<option value="">— Seleccionar estación —</option>' +
+    sorted.map(s => `<option value="${s.id}">${s.planta} | ${s.estacion} | ${s.bomba}</option>`).join('');
+}
+
+function toggleRegistroTarget() {
+  const type = document.getElementById('formTargetType')?.value || 'autotanque';
+  const labelEl = document.getElementById('formTargetLabel');
+  const atWrap = document.getElementById('formATWrap');
+  const stWrap = document.getElementById('formStationWrap');
+  const previewCard = document.getElementById('partPreviewCard');
+  if (!labelEl || !atWrap || !stWrap) return;
+
+  selectedPart = null;
+  const selectedInfo = document.getElementById('selectedPartInfo');
+  if (selectedInfo) selectedInfo.style.display = 'none';
+
+  if (type === 'estacion') {
+    labelEl.textContent = 'ESTACIÓN DE CARBURACIÓN';
+    atWrap.style.display = 'none';
+    stWrap.style.display = 'block';
+    if (previewCard) previewCard.style.display = 'none';
+    populateStationSelectForRegistro();
+  } else {
+    labelEl.textContent = 'AUTOTANQUE';
+    atWrap.style.display = 'block';
+    stWrap.style.display = 'none';
+    if (previewCard) previewCard.style.display = 'none';
+  }
+  renderPartList();
+  updateSecuritySealEvidenceUI();
+  refreshSelectedPartImageUI();
+}
+
 // ── SAVE COMPONENT RECORD ─────────────────────────────────────────────
 async function saveComponentRecord() {
   if (!selectedPart) return alert('Selecciona un componente de la lista.');
-  const atId = document.getElementById('formAT').value;
-  if (!atId) return alert('Selecciona un autotanque.');
+  const targetType = document.getElementById('formTargetType')?.value || 'autotanque';
   const notesText = document.getElementById('formNotes').value || '';
   const fabRawCode = document.getElementById('formFabDate').value || '';
   const parsedFab = parseFabCode(fabRawCode);
   if (!parsedFab && !notesText.trim()) {
-    return alert('Ingresa un código/fecha válida o agrega una nota cuando el autotanque no cuenta con la válvula.');
+    return alert('Ingresa un código/fecha válida o agrega una nota cuando no se cuenta con el componente.');
   }
   const fabDate = parsedFab ? parsedFab.iso : '';
-  const replDateAuto = fabDate ? addYears(fabDate, REPLACEMENT_YEARS) : '';
+  const replYears = getReplacementYearsForPart(selectedPart || {});
+  const replDateAuto = fabDate ? addYears(fabDate, replYears) : '';
   const notesFinal = ensureNoValveTagInNotes(notesText, Boolean(fabDate));
 
+  if (targetType === 'estacion') {
+    const stationId = document.getElementById('formStation')?.value || '';
+    if (!stationId) return alert('Selecciona una estación.');
+    const station = estaciones.find(s => s.id === stationId);
+    if (!station) return alert('No se encontró la estación seleccionada.');
+    const stationRec = {
+      id: genId(),
+      stationId,
+      partNo: selectedPart.repeats > 1 ? selectedPart.allNos.join('/') : selectedPart.no,
+      partPn: selectedPart.pn,
+      partDesc: selectedPart.desc,
+      partBrand: selectedPart.brand,
+      fabDate,
+      instDate: document.getElementById('formInstDate').value,
+      replDate: document.getElementById('formReplDate').value || replDateAuto,
+      serial: document.getElementById('formSerial').value,
+      brand: document.getElementById('formBrand').value || selectedPart.brand,
+      notes: notesFinal,
+      createdAt: new Date().toISOString(),
+    };
+    if (!(await insertStationRecordRemote(stationRec))) return;
+    stationRecords.push(stationRec);
+    const idx = estaciones.findIndex(s => s.id === stationId);
+    if (idx >= 0) {
+      const set = new Set(Array.isArray(estaciones[idx].componentes) ? estaciones[idx].componentes : []);
+      set.add(selectedPart.desc);
+      estaciones[idx].componentes = [...set];
+    }
+    save();
+    clearForm();
+    alert(`✅ Registro guardado para estación ${station.estacion} (${station.bomba}) — Pieza ${stationRec.partNo}`);
+    renderEstaciones();
+    renderDashboard();
+    return;
+  }
+  const atId = document.getElementById('formAT').value;
+  if (!atId) return alert('Selecciona un autotanque.');
+  const sealEvidenceRequired = mustCaptureSecuritySealEvidence();
+  const sealEvidenceFiles = sealEvidenceRequired ? getSecuritySealEvidenceFiles() : [];
+  if (sealEvidenceRequired) {
+    if (sealEvidenceFiles.length < SECURITY_SEAL_MIN_EVIDENCE_FILES || sealEvidenceFiles.length > SECURITY_SEAL_MAX_EVIDENCE_FILES) {
+      return alert(`Para "Sello de seguridad" debes adjuntar entre ${SECURITY_SEAL_MIN_EVIDENCE_FILES} y ${SECURITY_SEAL_MAX_EVIDENCE_FILES} evidencias por pipa.`);
+    }
+  }
+
+  const recId = genId();
+  let notesWithEvidence = notesFinal;
+  if (sealEvidenceRequired) {
+    const evidenceResult = await attachSecuritySealEvidenceToAutotanque(atId, recId, sealEvidenceFiles);
+    if (!evidenceResult.ok) return alert(evidenceResult.message || 'No se pudo guardar la evidencia de sellos.');
+    const extraNote = `EVIDENCIA DE SELLOS: ${sealEvidenceFiles.length} archivo(s) adjuntos en expediente del autotanque.`;
+    notesWithEvidence = notesFinal ? `${notesFinal} | ${extraNote}` : extraNote;
+  }
+
   const rec = {
-    id:       genId(),
+    id:       recId,
     atId,
     partNo:   selectedPart.no,
     partPn:   selectedPart.pn,
@@ -1242,7 +2122,7 @@ async function saveComponentRecord() {
     replDate:  document.getElementById('formReplDate').value || replDateAuto,
     serial:    document.getElementById('formSerial').value,
     brand:     document.getElementById('formBrand').value || selectedPart.brand,
-    notes:     notesFinal,
+    notes:     notesWithEvidence,
     createdAt: new Date().toISOString(),
   };
 
@@ -1255,14 +2135,18 @@ async function saveComponentRecord() {
 }
 
 function clearForm() {
-  ['formAT','formFabDate','formInstDate','formReplDate','formSerial','formBrand','formNotes']
+  ['formAT','formStation','formFabDate','formInstDate','formReplDate','formSerial','formBrand','formNotes']
     .forEach(id => document.getElementById(id).value = '');
+  document.getElementById('formTargetType').value = 'autotanque';
+  toggleRegistroTarget();
   const hintEl = document.getElementById('formFabHint');
-  if (hintEl) hintEl.innerHTML = 'Formatos válidos: <b>6A92</b>, <b>9C22</b>, <b>09C22</b> o <b>27/04/2026</b>.';
+  if (hintEl) hintEl.innerHTML = `Formatos válidos: <b>6A92</b>, <b>9C22</b>, <b>09C22</b> o <b>27/04/2026</b>. Regla general: <b>${REPLACEMENT_YEARS} años</b> (Manguera 20BHB: <b>${HOSE_20BHB_MAX_YEARS} años máx.</b>).`;
   document.getElementById('partImageFile').value = '';
+  document.getElementById('formSealEvidence').value = '';
   selectedPart = null;
   document.getElementById('selectedPartInfo').style.display = 'none';
   document.getElementById('partPreviewCard').style.display = 'none';
+  updateSecuritySealEvidenceUI();
   refreshSelectedPartImageUI();
   renderPartList();
 }
@@ -1305,8 +2189,10 @@ async function saveSelectedPartImage() {
   }
 
   try {
+    const targetType = getRegistroTargetType();
+    const imageKey = targetType === 'estacion' ? `estacion:${selectedPart.no}` : selectedPart.no;
     const payload = {
-      partNo: selectedPart.no,
+      partNo: imageKey,
       fileName: file.name || `${selectedPart.no}.png`,
       mimeType: file.type || 'image/png',
       sizeBytes: file.size || 0,
@@ -1319,7 +2205,7 @@ async function saveSelectedPartImage() {
     if (!save()) return;
     fileInput.value = '';
     refreshSelectedPartImageUI();
-    alert(`✅ Imagen guardada para la pieza ${payload.partNo}.`);
+    alert(`✅ Imagen guardada para la pieza ${selectedPart.no}.`);
   } catch {
     alert('No se pudo leer o guardar la imagen seleccionada.');
   }
@@ -1327,9 +2213,10 @@ async function saveSelectedPartImage() {
 
 async function removeSelectedPartImage() {
   if (!selectedPart) return alert('Selecciona una pieza.');
-  const partNo = selectedPart.no;
+  const targetType = getRegistroTargetType();
+  const partNo = targetType === 'estacion' ? `estacion:${selectedPart.no}` : selectedPart.no;
   if (!partImages[partNo]) return alert('La pieza seleccionada no tiene imagen personalizada.');
-  if (!confirm(`¿Quitar imagen personalizada de la pieza ${partNo}?`)) return;
+  if (!confirm(`¿Quitar imagen personalizada de la pieza ${selectedPart.no}?`)) return;
 
   if (!(await deletePartImageRemote(partNo))) return;
   delete partImages[partNo];
@@ -1373,6 +2260,47 @@ async function createExpedienteDocFromFile(file, category, customName) {
     ...baseDoc,
     dataUrl: await readFileAsDataUrl(file)
   };
+}
+
+async function attachSecuritySealEvidenceToAutotanque(atId, recordId, files = []) {
+  const atIndex = autotanques.findIndex(a => a.id === atId);
+  if (atIndex < 0) {
+    return { ok: false, message: 'No se encontró el autotanque para guardar la evidencia de sellos.' };
+  }
+
+  const at = autotanques[atIndex];
+  const nextExpediente = normalizeExpediente(at.expediente).map(d => ({ ...d }));
+  const uploadedDocs = [];
+  const uploadedPaths = [];
+  const prevDraftAtId = currentDraftATId;
+  currentDraftATId = atId;
+
+  try {
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const customName = `Evidencia sello seguridad ${i + 1}/${files.length} | Pieza ${selectedPart?.no || ''} | Registro ${recordId}`;
+      const doc = await createExpedienteDocFromFile(file, 'otro', customName);
+      uploadedDocs.push(doc);
+      if (doc?.storagePath) uploadedPaths.push(doc.storagePath);
+    }
+  } catch (err) {
+    if (uploadedPaths.length) await deleteExpedienteFilesRemote(uploadedPaths);
+    currentDraftATId = prevDraftAtId;
+    return { ok: false, message: err?.message || 'No se pudo cargar la evidencia de sellos.' };
+  }
+
+  currentDraftATId = prevDraftAtId;
+  const updatedAt = {
+    ...at,
+    expediente: [...nextExpediente, ...uploadedDocs]
+  };
+  if (!(await upsertUnitRemote(updatedAt))) {
+    if (uploadedPaths.length) await deleteExpedienteFilesRemote(uploadedPaths);
+    return { ok: false, message: 'No se pudo guardar la evidencia de sellos en el expediente del autotanque.' };
+  }
+
+  autotanques[atIndex] = updatedAt;
+  return { ok: true, uploadedDocs };
 }
 
 async function addExpedienteDoc() {
@@ -1563,11 +2491,21 @@ async function bootstrapApp() {
   appBootstrapped = true;
 
   document.getElementById('formFabDate')?.addEventListener('input', updateReplacementFromFabInput);
+  document.getElementById('formSealEvidence')?.addEventListener('change', updateSecuritySealEvidenceUI);
   document.getElementById('editRecFabDate')?.addEventListener('change', e => {
     const replEl = document.getElementById('editRecReplDate');
     if (!replEl) return;
-    if (!replEl.value && e.target.value) replEl.value = addYears(e.target.value, REPLACEMENT_YEARS);
+    if (!replEl.value && e.target.value) {
+      const current = records.find(r => r.id === editingRecordId) || {};
+      const years = getReplacementYearsForPart({
+        partNo: current.partNo,
+        partPn: current.partPn,
+        partDesc: current.partDesc
+      });
+      replEl.value = addYears(e.target.value, years);
+    }
   });
+  bindDashboardControls();
   syncConfigInputs();
   updateStorageModeLabel();
   if (runtimeUseSupabase) {
@@ -1581,10 +2519,10 @@ async function bootstrapApp() {
     if (runtimeUseSupabase) {
       const synced = await upsertRecordsRemote(
         policySync.changed,
-        `migrar reemplazos automáticos de ${LEGACY_REPLACEMENT_YEARS} a ${REPLACEMENT_YEARS} años`
+        'migrar reemplazos automáticos según política por componente'
       );
       if (synced) {
-        updateStorageModeLabel(`reemplazos recalculados a ${REPLACEMENT_YEARS} años (${policySync.changed.length} registros)`);
+        updateStorageModeLabel(`reemplazos recalculados por política (${policySync.changed.length} registros)`);
       }
     } else {
       save();
@@ -1592,9 +2530,13 @@ async function bootstrapApp() {
   }
 
   populatePlantSelectors();
+  updateSecuritySealEvidenceUI();
   refreshSelectedPartImageUI();
   renderPartList();
+  renderEstaciones();
   populateATSelect();
+  populateStationSelectForRegistro();
+  toggleRegistroTarget();
   renderDashboard();
   renderAutotanques();
   renderDraftExpedienteList();
@@ -1633,6 +2575,7 @@ function openModalAutotanque(id) {
   document.getElementById('expDocFile').value = '';
   if (id) {
     const at = autotanques.find(a => a.id === id);
+    if (!at) return alert('No se encontró el autotanque seleccionado.');
     document.getElementById('atEcon').value        = at.econ;
     document.getElementById('atPlaca').value       = at.placa;
     document.getElementById('atPlantaActual').value= at.plantaActual || '';
@@ -1641,11 +2584,21 @@ function openModalAutotanque(id) {
     document.getElementById('atCapacidad').value   = at.capacidad;
     document.getElementById('atAnio').value        = at.anio;
     document.getElementById('atNotas').value       = at.notas;
+    document.getElementById('atActivo').checked    = at.activo !== false;
+    document.getElementById('atEnServicio').checked= at.enServicio !== false;
+    document.getElementById('atMarcaUnidad').value = at.marcaUnidad || '';
+    document.getElementById('atModeloUnidad').value= at.modeloUnidad || '';
+    document.getElementById('atDictamenMes').value = at.dictamenNomMes || '';
+    document.getElementById('atDictamenAnio').value = at.dictamenNomAnio || '';
+    document.getElementById('atRegistroSener').value = at.registroSener || '';
+    document.getElementById('atNoRegTagSener').value = at.noRegTagSener || '';
     draftExpedienteDocs = (at.expediente || []).map(d => ({ ...d }));
     originalExpedientePaths = new Set(draftExpedienteDocs.map(d => d.storagePath).filter(Boolean));
   } else {
-    ['atEcon','atPlaca','atPlantaActual','atSerieUnidad','atSerieTanque','atCapacidad','atAnio','atNotas']
+    ['atEcon','atPlaca','atPlantaActual','atSerieUnidad','atSerieTanque','atCapacidad','atAnio','atNotas','atMarcaUnidad','atModeloUnidad','atDictamenMes','atDictamenAnio','atRegistroSener','atNoRegTagSener']
       .forEach(id => document.getElementById(id).value = '');
+    document.getElementById('atActivo').checked = true;
+    document.getElementById('atEnServicio').checked = true;
     draftExpedienteDocs = [];
   }
   renderDraftExpedienteList();
@@ -1685,6 +2638,14 @@ async function saveAutotanque() {
     capacidad:   document.getElementById('atCapacidad').value,
     anio:        document.getElementById('atAnio').value,
     notas:       document.getElementById('atNotas').value,
+    activo:      document.getElementById('atActivo').checked,
+    enServicio:  document.getElementById('atEnServicio').checked,
+    marcaUnidad: document.getElementById('atMarcaUnidad').value,
+    modeloUnidad: document.getElementById('atModeloUnidad').value,
+    dictamenNomMes: document.getElementById('atDictamenMes').value,
+    dictamenNomAnio: document.getElementById('atDictamenAnio').value,
+    registroSener: document.getElementById('atRegistroSener').value,
+    noRegTagSener: document.getElementById('atNoRegTagSener').value,
     expediente:  draftExpedienteDocs.map(d => ({ ...d })),
   };
 
@@ -1735,57 +2696,416 @@ function renderAutotanques() {
       a.econ.toLowerCase().includes(q) ||
       a.placa.toLowerCase().includes(q) ||
       (a.plantaActual||'').toLowerCase().includes(q) ||
-      (a.serieUnidad||'').toLowerCase().includes(q)
+      (a.serieUnidad||'').toLowerCase().includes(q) ||
+      (a.serieTanque||'').toLowerCase().includes(q) ||
+      (a.marcaUnidad||'').toLowerCase().includes(q) ||
+      (a.modeloUnidad||'').toLowerCase().includes(q) ||
+      (a.noRegTagSener||'').toLowerCase().includes(q)
     );
   });
   const sorted = sortUnitsByMode(filtered, orderMode);
 
   if (!sorted.length) {
     tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:var(--muted);padding:30px">Sin autotanques registrados. Haz clic en "+ NUEVO AUTOTANQUE".</td></tr>';
+    renderAutotanquesExpiryMatrix([]);
     return;
   }
 
-  tbody.innerHTML = sorted.map(at => {
-    const atRecs = records.filter(r => r.atId === at.id);
-    const expedienteDocs = normalizeExpediente(at.expediente);
-    const expedienteCount = expedienteDocs.length;
-    const withDate = atRecs.filter(r => r.replDate);
-    const vencidos = withDate.filter(r => daysUntil(r.replDate) < 0).length;
-    const criticos = withDate.filter(r => { const d=daysUntil(r.replDate); return d>=0&&d<=90; }).length;
+  const plantsMap = new Map();
+  sorted.forEach(at => {
+    const plant = normalizePlantName(at.plantaActual || '') || String(at.plantaActual || '').trim() || 'SIN PLANTA';
+    if (!plantsMap.has(plant)) plantsMap.set(plant, []);
+    plantsMap.get(plant).push(at);
+  });
+  const plantEntries = Array.from(plantsMap.entries()).sort((a, b) => compareTextNatural(a[0], b[0]));
 
-    let estado = '<span class="badge badge-ok">OK</span>';
-    if (vencidos > 0) estado = `<span class="badge badge-danger">${vencidos} VENCIDO(S)</span>`;
-    else if (criticos > 0) estado = `<span class="badge badge-warn">${criticos} CRÍTICO(S)</span>`;
-    else if (!atRecs.length) estado = '<span class="badge badge-none">SIN REGISTROS</span>';
+  if (selectedPlant) {
+    const selectedPlantKey = encodeURIComponent(selectedPlant);
+    if (expandedAutotanquePlantKey !== selectedPlantKey) expandedAutotanquePlantKey = selectedPlantKey;
+  } else if (expandedAutotanquePlantKey) {
+    const keyExists = plantEntries.some(([plant]) => encodeURIComponent(plant) === expandedAutotanquePlantKey);
+    if (!keyExists) expandedAutotanquePlantKey = null;
+  }
 
-    const pct = atRecs.length ? Math.round(atRecs.length/PARTS.length*100) : 0;
-    const pctClass = pct < 50 ? 'danger' : pct < 80 ? 'warn' : '';
-    const expedienteEstado = expedienteCount
-      ? `<span class="badge badge-ok">CAPTURADO (${expedienteCount})</span>`
-      : '<span class="badge badge-none">SIN CAPTURAR</span>';
+  tbody.innerHTML = plantEntries.map(([plant, units]) => {
+    const plantKey = encodeURIComponent(plant);
+    const expanded = expandedAutotanquePlantKey === plantKey;
+    const unitsSorted = sortUnitsByMode(units, orderMode);
 
-    return `<tr>
-      <td><b style="color:var(--accent)">${at.econ}</b></td>
-      <td>${at.placa}</td>
-      <td style="font-family:monospace;font-size:11px">${at.serieUnidad||'—'}</td>
-      <td style="font-family:monospace;font-size:11px">${at.serieTanque||'—'}</td>
-      <td>${at.capacidad?at.capacidad+' L':'—'}</td>
-      <td>${at.plantaActual || '—'}</td>
-      <td>${expedienteEstado}</td>
-      <td class="progress-cell">
-        <div class="prog-bar"><div class="prog-fill ${pctClass}" style="width:${pct}%"></div></div>
-        <span style="font-size:11px">${atRecs.length}/${PARTS.length}</span>
-      </td>
-      <td>${estado}</td>
-      <td>
-        <div class="flex-gap">
-          <button class="btn btn-secondary" style="padding:5px 10px;font-size:11px" onclick="viewAutotanque('${at.id}')">VER</button>
-          <button class="btn btn-secondary" style="padding:5px 10px;font-size:11px" onclick="openModalAutotanque('${at.id}')">✏️</button>
-          <button class="btn btn-danger" style="padding:5px 10px;font-size:11px" onclick="deleteAutotanque('${at.id}')">🗑</button>
-        </div>
-      </td>
-    </tr>`;
+    const totalRecords = unitsSorted.reduce((acc, at) => acc + records.filter(r => r.atId === at.id).length, 0);
+    const plantSummary = `${unitsSorted.length} unidad(es) | ${totalRecords} componente(s)`;
+
+    const unitRows = expanded ? unitsSorted.map(at => {
+      const atRecs = records.filter(r => r.atId === at.id);
+      const expedienteDocs = normalizeExpediente(at.expediente);
+      const expedienteCount = expedienteDocs.length;
+      const withDate = atRecs.filter(r => r.replDate);
+      const vencidos = withDate.filter(r => daysUntil(r.replDate) < 0).length;
+      const criticos = withDate.filter(r => { const d=daysUntil(r.replDate); return d>=0&&d<=90; }).length;
+
+      let estado = '<span class="badge badge-ok">OK</span>';
+      if (vencidos > 0) estado = `<span class="badge badge-danger">${vencidos} VENCIDO(S)</span>`;
+      else if (criticos > 0) estado = `<span class="badge badge-warn">${criticos} CRÍTICO(S)</span>`;
+      else if (!atRecs.length) estado = '<span class="badge badge-none">SIN REGISTROS</span>';
+
+      const pct = atRecs.length ? Math.round(atRecs.length/PARTS.length*100) : 0;
+      const pctClass = pct < 50 ? 'danger' : pct < 80 ? 'warn' : '';
+      const expedienteEstado = expedienteCount
+        ? `<span class="badge badge-ok">CAPTURADO (${expedienteCount})</span>`
+        : '<span class="badge badge-none">SIN CAPTURAR</span>';
+
+      return `<tr>
+        <td><b style="color:var(--accent)">${escapeHtml(at.econ)}</b></td>
+        <td>${escapeHtml(at.placa)}</td>
+        <td style="font-family:monospace;font-size:11px">${escapeHtml(at.serieUnidad||'—')}</td>
+        <td style="font-family:monospace;font-size:11px">${escapeHtml(at.serieTanque||'—')}</td>
+        <td>${escapeHtml(at.capacidad?at.capacidad+' L':'—')}</td>
+        <td>${escapeHtml(at.plantaActual || '—')}</td>
+        <td>${expedienteEstado}</td>
+        <td class="progress-cell">
+          <div class="prog-bar"><div class="prog-fill ${pctClass}" style="width:${pct}%"></div></div>
+          <span style="font-size:11px">${atRecs.length}/${PARTS.length}</span>
+        </td>
+        <td>${estado}</td>
+        <td>
+          <div class="flex-gap">
+            <button class="btn btn-secondary" style="padding:5px 10px;font-size:11px" onclick="viewAutotanque('${at.id}')">VER</button>
+            <button class="btn btn-secondary" style="padding:5px 10px;font-size:11px" onclick="openModalAutotanque('${at.id}')">✏️</button>
+            <button class="btn btn-danger" style="padding:5px 10px;font-size:11px" onclick="deleteAutotanque('${at.id}')">🗑</button>
+          </div>
+        </td>
+      </tr>`;
+    }).join('') : '';
+
+    return `
+      <tr>
+        <td colspan="10" class="plant-group-row bg-slate-50">
+          <button class="station-group-toggle" type="button" onclick="toggleAutotanquesPlantGroup('${plantKey}')">
+            <span class="accordion-chevron ${expanded ? 'expanded' : ''}">▶</span>
+            <b style="color:var(--accent)">${escapeHtml(plant)}</b>
+            <span style="color:var(--muted); font-size:11px">${plantSummary}</span>
+          </button>
+        </td>
+      </tr>
+      ${unitRows}
+    `;
   }).join('');
+
+  renderAutotanquesExpiryMatrix(sorted);
+}
+
+function getLatestRecordByPartForUnit(atId) {
+  const byPart = new Map();
+  records
+    .filter(r => r.atId === atId)
+    .forEach(rec => {
+      const key = String(rec.partNo || '').trim();
+      if (!key) return;
+      const current = byPart.get(key);
+      if (!current) {
+        byPart.set(key, rec);
+        return;
+      }
+      const curDate = new Date(current.createdAt || 0).getTime();
+      const nextDate = new Date(rec.createdAt || 0).getTime();
+      if (nextDate >= curDate) byPart.set(key, rec);
+    });
+  return byPart;
+}
+
+function getLatestBrandByUnit(atId) {
+  const latest = records
+    .filter(r => r.atId === atId && String(r.brand || '').trim())
+    .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))[0];
+  return latest?.brand || '';
+}
+
+function renderAutotanquesExpiryMatrix(units = []) {
+  const head = document.getElementById('tableATMatrixHead');
+  const body = document.getElementById('tableATMatrixBody');
+  const counter = document.getElementById('matrixCounter');
+  if (!head || !body) return;
+
+  const parts = [...PARTS].sort((a, b) => compareTextNatural(a.no, b.no));
+  head.innerHTML = `
+    <tr>
+      <th class="matrix-sticky-col">Acciones</th>
+      <th>Sucursal</th>
+      <th>Tipo</th>
+      <th>NoEco</th>
+      <th>Placas</th>
+      <th>Capacidad</th>
+      <th>No. Serie Tanque</th>
+      <th>Marca</th>
+      ${parts.map(p => `<th>Fecha Vencimiento<br>${escapeHtml(p.desc)}</th>`).join('')}
+    </tr>
+  `;
+  if (counter) counter.textContent = `${units.length} Autotanque(s) encontrado(s)`;
+
+  if (!units.length) {
+    body.innerHTML = `<tr><td class="matrix-sticky-col" colspan="${8 + parts.length}" style="text-align:center;color:var(--muted);padding:20px">Sin autotanques para mostrar con el filtro actual.</td></tr>`;
+    return;
+  }
+
+  body.innerHTML = units.map(unit => {
+    const partMap = getLatestRecordByPartForUnit(unit.id);
+    const brand = getLatestBrandByUnit(unit.id);
+    const partCells = parts.map(part => {
+      const rec = partMap.get(String(part.no));
+      if (!rec || !rec.replDate) return '<td class="matrix-empty">—</td>';
+
+      const d = daysUntil(rec.replDate);
+      const txt = formatDate(rec.replDate);
+      if (d !== null && d < 0) return `<td class="matrix-expired">${txt}</td>`;
+      if (d !== null && d <= MATRIX_WARNING_DAYS) return `<td class="matrix-critical">${txt}</td>`;
+      return `<td class="matrix-ok">${txt}</td>`;
+    }).join('');
+
+    return `
+      <tr>
+        <td class="matrix-sticky-col">
+          <div class="matrix-actions">
+            <button class="btn btn-secondary matrix-icon-btn" title="Ver" onclick="viewAutotanque('${unit.id}')">👁</button>
+            <button class="btn btn-secondary matrix-icon-btn" title="Editar registro de reemplazo" onclick="openMatrixRecordEditor('${unit.id}')">✏️</button>
+            <button class="btn btn-danger matrix-icon-btn" title="Eliminar registro de reemplazo" onclick="deleteMatrixRecord('${unit.id}')">🗑</button>
+          </div>
+        </td>
+        <td class="matrix-meta">${escapeHtml(unit.plantaActual || '—')}</td>
+        <td class="matrix-meta">AT</td>
+        <td class="matrix-meta">${escapeHtml(unit.econ || '—')}</td>
+        <td class="matrix-meta">${escapeHtml(unit.placa || '—')}</td>
+        <td class="matrix-meta">${escapeHtml(unit.capacidad ? `${unit.capacidad} L` : '—')}</td>
+        <td class="matrix-meta">${escapeHtml(unit.serieTanque || '—')}</td>
+        <td class="matrix-meta">${escapeHtml(brand || '—')}</td>
+        ${partCells}
+      </tr>
+    `;
+  }).join('');
+
+  syncAutotanquesMatrixScroll();
+}
+
+function syncAutotanquesMatrixScroll() {
+  const top = document.getElementById('matrixTopScroll');
+  const topInner = document.getElementById('matrixTopScrollInner');
+  const wrap = document.querySelector('.matrix-wrap');
+  const table = document.getElementById('tableATMatrix');
+  if (!top || !topInner || !wrap || !table) return;
+
+  topInner.style.width = `${Math.max(table.scrollWidth, wrap.scrollWidth)}px`;
+
+  if (top.dataset.bound !== '1') {
+    top.addEventListener('scroll', () => {
+      if (wrap.scrollLeft !== top.scrollLeft) wrap.scrollLeft = top.scrollLeft;
+    });
+    top.dataset.bound = '1';
+  }
+  if (wrap.dataset.bound !== '1') {
+    wrap.addEventListener('scroll', () => {
+      if (top.scrollLeft !== wrap.scrollLeft) top.scrollLeft = wrap.scrollLeft;
+    });
+    wrap.dataset.bound = '1';
+  }
+}
+
+function getUnitsForReplMatrix() {
+  const filterAt = document.getElementById('filterReplAT')?.value || '';
+  const filterStatus = document.getElementById('filterReplStatus')?.value || '';
+  const searchTerm = normalizeMatchText(document.getElementById('searchRepl')?.value || '');
+  let units = sortUnitsByMode(autotanques, 'econ-asc');
+  if (filterAt) units = units.filter(u => u.id === filterAt);
+
+  return units.filter(unit => {
+    const partMap = getLatestRecordByPartForUnit(unit.id);
+
+    if (filterStatus) {
+      const hasStatus = PARTS.some(part => {
+        const rec = partMap.get(String(part.no));
+        if (!rec || !rec.replDate) return filterStatus === 'sin-fecha';
+        return statusKey(daysUntil(rec.replDate)) === filterStatus;
+      });
+      if (!hasStatus) return false;
+    }
+
+    if (replMatrixColorFilter) {
+      const hasColor = PARTS.some(part => {
+        const rec = partMap.get(String(part.no));
+        return recordMatchesMatrixColor(rec, replMatrixColorFilter);
+      });
+      if (!hasColor) return false;
+    }
+
+    if (!searchTerm) return true;
+    const recValues = Array.from(partMap.values()).flatMap(r => [
+      r.partNo, r.partDesc, r.partPn, r.brand, r.serial, r.notes
+    ]);
+    const bag = [
+      unit.econ, unit.placa, unit.plantaActual, unit.serieUnidad, unit.serieTanque, unit.capacidad, unit.notas,
+      ...recValues
+    ];
+    return bag.some(v => normalizeMatchText(v).includes(searchTerm));
+  });
+}
+
+function recordMatchesMatrixColor(rec, colorFilter) {
+  if (!rec || !rec.replDate) return false;
+  const d = daysUntil(rec.replDate);
+  if (d === null) return false;
+  if (colorFilter === 'expired') return d < 0;
+  if (colorFilter === 'warning') return d >= 0 && d <= MATRIX_WARNING_DAYS;
+  if (colorFilter === 'ok') return d > MATRIX_WARNING_DAYS;
+  return true;
+}
+
+function updateReplMatrixLegendState() {
+  const wrap = document.querySelector('.matrix-legend-inline');
+  if (!wrap) return;
+  wrap.querySelectorAll('[data-matrix-filter]').forEach(btn => {
+    const filter = String(btn.getAttribute('data-matrix-filter') || '');
+    const isActive = Boolean(replMatrixColorFilter) && filter === replMatrixColorFilter;
+    btn.classList.toggle('active', isActive);
+    btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+  });
+}
+
+function setReplMatrixColorFilter(colorFilter) {
+  const next = replMatrixColorFilter === colorFilter ? '' : colorFilter;
+  replMatrixColorFilter = next;
+  updateReplMatrixLegendState();
+  renderReemplazosExpiryMatrix();
+}
+
+function renderReemplazosExpiryMatrix() {
+  const head = document.getElementById('tableReplMatrixHead');
+  const body = document.getElementById('tableReplMatrixBody');
+  const counter = document.getElementById('replMatrixCounter');
+  if (!head || !body) return;
+  updateReplMatrixLegendState();
+
+  const units = getUnitsForReplMatrix();
+  const parts = [...PARTS].sort((a, b) => compareTextNatural(a.no, b.no));
+  head.innerHTML = `
+    <tr>
+      <th class="matrix-sticky-col matrix-fixed-col">Acciones</th>
+      <th class="matrix-fixed-col">Planta</th>
+      <th class="matrix-fixed-col">Tipo</th>
+      <th class="matrix-fixed-col">NoEco</th>
+      <th class="matrix-fixed-col">Placas</th>
+      <th class="matrix-fixed-col">Capacidad</th>
+      <th class="matrix-fixed-col">No. Serie Tanque</th>
+      <th class="matrix-fixed-col">Marca</th>
+      ${parts.map(p => `
+        <th class="matrix-part-col">
+          <span class="matrix-head-title">F. Vencimiento</span>
+          <span class="matrix-head-sub">${escapeHtml(p.desc)}</span>
+        </th>
+      `).join('')}
+    </tr>
+  `;
+  if (counter) counter.textContent = `${units.length} Autotanque(s) encontrado(s)`;
+
+  if (!units.length) {
+    body.innerHTML = `<tr><td class="matrix-sticky-col" colspan="${8 + parts.length}" style="text-align:center;color:var(--muted);padding:20px">Sin autotanques para mostrar con el filtro actual.</td></tr>`;
+    syncReemplazosMatrixScroll();
+    return;
+  }
+
+  body.innerHTML = units.map(unit => {
+    const partMap = getLatestRecordByPartForUnit(unit.id);
+    const brand = getLatestBrandByUnit(unit.id);
+    const partCells = parts.map(part => {
+      const rec = partMap.get(String(part.no));
+      if (!rec || !rec.replDate) return '<td class="matrix-part-col matrix-empty">—</td>';
+
+      const d = daysUntil(rec.replDate);
+      const txt = rec.replDate;
+      if (replMatrixColorFilter && !recordMatchesMatrixColor(rec, replMatrixColorFilter)) {
+        return '<td class="matrix-part-col matrix-empty">—</td>';
+      }
+
+      if (d !== null && d < 0) return `<td class="matrix-part-col matrix-expired">${txt}</td>`;
+      if (d !== null && d <= MATRIX_WARNING_DAYS) return `<td class="matrix-part-col matrix-critical">${txt}</td>`;
+      return `<td class="matrix-part-col matrix-ok">${txt}</td>`;
+    }).join('');
+
+    return `
+      <tr>
+        <td class="matrix-sticky-col">
+          <div class="matrix-actions">
+            <button class="btn btn-secondary matrix-icon-btn" title="Ver" onclick="viewAutotanque('${unit.id}')">👁</button>
+            <button class="btn btn-secondary matrix-icon-btn" title="Editar registro de reemplazo" onclick="openMatrixRecordEditor('${unit.id}')">✏️</button>
+            <button class="btn btn-danger matrix-icon-btn" title="Eliminar registro de reemplazo" onclick="deleteMatrixRecord('${unit.id}')">🗑</button>
+          </div>
+        </td>
+        <td class="matrix-meta">${escapeHtml(unit.plantaActual || '—')}</td>
+        <td class="matrix-meta">AT</td>
+        <td class="matrix-meta">${escapeHtml(unit.econ || '—')}</td>
+        <td class="matrix-meta">${escapeHtml(unit.placa || '—')}</td>
+        <td class="matrix-meta">${escapeHtml(unit.capacidad || '—')}</td>
+        <td class="matrix-meta">${escapeHtml(unit.serieTanque || '—')}</td>
+        <td class="matrix-meta">${escapeHtml(brand || '—')}</td>
+        ${partCells}
+      </tr>
+    `;
+  }).join('');
+
+  syncReemplazosMatrixScroll();
+}
+
+function getPreferredRecordForUnit(atId) {
+  const unitRecords = records
+    .filter(r => r.atId === atId)
+    .map(r => ({ ...r, days: daysUntil(r.replDate) }));
+  if (!unitRecords.length) return null;
+
+  unitRecords.sort((a, b) => {
+    const da = a.days === null ? 999999 : a.days;
+    const db = b.days === null ? 999999 : b.days;
+    if (da !== db) return da - db;
+    return compareTextNatural(a.partNo, b.partNo);
+  });
+  return unitRecords[0];
+}
+
+function openMatrixRecordEditor(atId) {
+  const rec = getPreferredRecordForUnit(atId);
+  if (!rec) return alert('Este autotanque no tiene registros de reemplazo para editar.');
+  openRecordEditor(rec.id);
+}
+
+async function deleteMatrixRecord(atId) {
+  const rec = getPreferredRecordForUnit(atId);
+  if (!rec) return alert('Este autotanque no tiene registros de reemplazo para eliminar.');
+  await deleteRecord(rec.id);
+}
+
+function syncReemplazosMatrixScroll() {
+  const top = document.getElementById('matrixReplTopScroll');
+  const topInner = document.getElementById('matrixReplTopScrollInner');
+  const wrap = document.getElementById('replMatrixWrap');
+  const table = document.getElementById('tableReplMatrix');
+  if (!top || !topInner || !wrap || !table) return;
+
+  topInner.style.width = `${Math.max(table.scrollWidth, wrap.scrollWidth)}px`;
+
+  if (top.dataset.bound !== '1') {
+    top.addEventListener('scroll', () => {
+      if (wrap.scrollLeft !== top.scrollLeft) wrap.scrollLeft = top.scrollLeft;
+    });
+    top.dataset.bound = '1';
+  }
+  if (wrap.dataset.bound !== '1') {
+    wrap.addEventListener('scroll', () => {
+      if (top.scrollLeft !== wrap.scrollLeft) top.scrollLeft = wrap.scrollLeft;
+    });
+    wrap.dataset.bound = '1';
+  }
+}
+
+function toggleAutotanquesPlantGroup(plantKey) {
+  if (!plantKey) return;
+  expandedAutotanquePlantKey = expandedAutotanquePlantKey === plantKey ? null : plantKey;
+  renderAutotanques();
 }
 
 function viewAutotanque(id) {
@@ -1803,22 +3123,31 @@ function viewAutotanque(id) {
       <div class="detail-row"><span class="detail-key">SERIE TANQUE:</span><span class="detail-val">${at.serieTanque||'—'}</span></div>
       <div class="detail-row"><span class="detail-key">CAPACIDAD:</span><span class="detail-val">${at.capacidad?at.capacidad+' L':'—'}</span></div>
       <div class="detail-row"><span class="detail-key">PLANTA ACTUAL:</span><span class="detail-val">${at.plantaActual || '—'}</span></div>
+      <div class="detail-row"><span class="detail-key">ACTIVO:</span><span class="detail-val">${at.activo ? 'SI' : 'NO'}</span></div>
+      <div class="detail-row"><span class="detail-key">EN SERVICIO:</span><span class="detail-val">${at.enServicio ? 'SI' : 'NO'}</span></div>
+      <div class="detail-row"><span class="detail-key">MARCA:</span><span class="detail-val">${at.marcaUnidad || '—'}</span></div>
+      <div class="detail-row"><span class="detail-key">MODELO:</span><span class="detail-val">${at.modeloUnidad || '—'}</span></div>
+      <div class="detail-row"><span class="detail-key">DICTAMEN NOM-007:</span><span class="detail-val">${(at.dictamenNomMes || at.dictamenNomAnio) ? `${at.dictamenNomMes || '—'} / ${at.dictamenNomAnio || '—'}` : '—'}</span></div>
+      <div class="detail-row"><span class="detail-key">REGISTRO SENER:</span><span class="detail-val">${at.registroSener || '—'}</span></div>
+      <div class="detail-row"><span class="detail-key">NO. REG. TAG SENER:</span><span class="detail-val">${at.noRegTagSener || '—'}</span></div>
+      <div class="detail-row" style="grid-column:1 / -1"><span class="detail-key">NOTAS AUTOTANQUE:</span><span class="detail-val" style="white-space:pre-wrap;overflow-wrap:anywhere">${escapeHtml(at.notas || '—')}</span></div>
     </div>
     <div class="section-sep"></div>
     <div class="card-title">COMPONENTES REGISTRADOS (${atRecs.length})</div>
     <div class="table-wrap" style="max-height:300px;overflow-y:auto">
       <table>
-        <thead><tr><th>PIEZA</th><th>DESCRIPCIÓN</th><th>F.FAB</th><th>F.REEMPLAZO</th><th>ESTADO</th></tr></thead>
+        <thead><tr><th>PIEZA</th><th>DESCRIPCIÓN</th><th>F.FAB</th><th>F.REEMPLAZO</th><th>ESTADO</th><th>NOTAS / OBS.</th></tr></thead>
         <tbody>
           ${atRecs.length ? atRecs.map(r => `
             <tr>
-              <td style="font-family:monospace;color:var(--accent)">${r.partNo}</td>
-              <td>${r.partDesc}</td>
+              <td style="font-family:monospace;color:var(--accent)">${escapeHtml(r.partNo || '—')}</td>
+              <td>${escapeHtml(r.partDesc || '—')}</td>
               <td>${formatDate(r.fabDate)}</td>
               <td>${formatDate(r.replDate)}</td>
               <td>${statusBadge(daysUntil(r.replDate))}</td>
+              <td style="font-size:11px; white-space:pre-wrap; overflow-wrap:anywhere">${escapeHtml(r.notes || '—')}</td>
             </tr>`).join('') :
-            '<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:20px">Sin componentes registrados</td></tr>'
+            '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:20px">Sin componentes registrados</td></tr>'
           }
         </tbody>
       </table>
@@ -1841,7 +3170,10 @@ function toggleReemplazoGroup(atId) {
 
 function renderReemplazos() {
   const tbody = document.getElementById('tableReemplazos');
-  if (!tbody) return;
+  if (!tbody) {
+    renderReemplazosExpiryMatrix();
+    return;
+  }
   const filterAt     = document.getElementById('filterReplAT')?.value || '';
   const filterStatus = document.getElementById('filterReplStatus')?.value || '';
   const searchTerm   = (document.getElementById('searchRepl')?.value || '').trim().toLowerCase();
@@ -1883,6 +3215,7 @@ function renderReemplazos() {
 
   if (!rows.length) {
     tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:var(--muted);padding:30px">Sin registros que mostrar.</td></tr>';
+    renderReemplazosExpiryMatrix();
     return;
   }
 
@@ -1968,6 +3301,7 @@ function renderReemplazos() {
       ${detailsHtml}
     `;
   }).join('');
+  renderReemplazosExpiryMatrix();
 }
 
 function openRecordEditor(id) {
@@ -2001,7 +3335,12 @@ async function saveRecordEdit() {
 
   const instDate = document.getElementById('editRecInstDate').value || '';
   const replInput = document.getElementById('editRecReplDate').value || '';
-  const replDate = replInput || addYears(fabDate, REPLACEMENT_YEARS);
+  const replYears = getReplacementYearsForPart({
+    partNo: current.partNo,
+    partPn: current.partPn,
+    partDesc: current.partDesc
+  });
+  const replDate = replInput || addYears(fabDate, replYears);
 
   const updated = {
     ...current,
@@ -2032,57 +3371,631 @@ async function deleteRecord(id) {
 }
 
 // ── DASHBOARD ─────────────────────────────────────────────────────────
-function renderDashboard() {
-  const totalAT  = autotanques.length;
-  const totalRec = records.length;
-  const vencidos = records.filter(r => { const d=daysUntil(r.replDate); return d!==null && d<0; }).length;
-  const criticos = records.filter(r => { const d=daysUntil(r.replDate); return d!==null && d>=0 && d<=90; }).length;
+function parseDateSafe(value) {
+  if (!value) return null;
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
 
-  document.getElementById('statsGrid').innerHTML = `
-    <div class="stat-card stat-blue"><div class="stat-value">${totalAT}</div><div class="stat-label">AUTOTANQUES</div></div>
-    <div class="stat-card stat-green"><div class="stat-value">${totalRec}</div><div class="stat-label">COMPONENTES REGISTRADOS</div></div>
-    <div class="stat-card stat-red"><div class="stat-value">${vencidos}</div><div class="stat-label">VENCIDOS</div></div>
-    <div class="stat-card stat-amber"><div class="stat-value">${criticos}</div><div class="stat-label">CRÍTICOS (≤90 DÍAS)</div></div>
-  `;
+function startOfDay(date) {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
 
-  // Critical list
-  const critRecs = records
-    .map(r => ({ ...r, at: autotanques.find(a => a.id === r.atId), days: daysUntil(r.replDate) }))
-    .filter(r => r.at && r.days !== null && r.days <= 90)
-    .sort((a,b) => a.days - b.days)
-    .slice(0, 10);
+function endOfDay(date) {
+  const d = new Date(date);
+  d.setHours(23, 59, 59, 999);
+  return d;
+}
 
-  const critDiv = document.getElementById('criticalList');
-  if (!critRecs.length) {
-    critDiv.innerHTML = '<p style="color:var(--ok);font-size:13px;padding:10px 0">✅ Sin vencimientos críticos próximos.</p>';
-  } else {
-    critDiv.innerHTML = `<table><thead><tr><th>UNIDAD</th><th>PIEZA</th><th>DÍAS</th><th>ESTADO</th></tr></thead><tbody>
-      ${critRecs.map(r => `<tr>
-        <td><b style="color:var(--accent)">${r.at.econ}</b></td>
-        <td>${r.partNo} — ${r.partDesc.slice(0,30)}...</td>
-        <td style="font-family:monospace">${r.days < 0 ? 'VENCIDO' : r.days+' días'}</td>
+function inferCreatedAt(entity) {
+  const explicit = parseDateSafe(entity?.createdAt);
+  if (explicit) return explicit;
+  const id = String(entity?.id || '');
+  if (id.length <= 4) return null;
+  const prefix = id.slice(0, -4);
+  const ts = Number.parseInt(prefix, 36);
+  if (!Number.isFinite(ts)) return null;
+  if (ts < 946684800000 || ts > Date.now() + (24 * 60 * 60 * 1000)) return null;
+  const inferred = new Date(ts);
+  return Number.isNaN(inferred.getTime()) ? null : inferred;
+}
+
+function daysUntilFrom(dateStr, refDate = new Date()) {
+  if (!dateStr) return null;
+  const target = new Date(`${dateStr}T00:00:00`);
+  if (Number.isNaN(target.getTime())) return null;
+  const ref = startOfDay(refDate);
+  return Math.floor((target - ref) / (1000 * 60 * 60 * 24));
+}
+
+function dashboardStatusFromDays(days) {
+  if (days === null) return 'sin-fecha';
+  if (days < 0) return 'vencido';
+  if (days <= 90) return 'critico';
+  if (days <= 180) return 'proximo';
+  return 'vigente';
+}
+
+function inRange(date, start, end) {
+  if (!date) return false;
+  if (start && date < start) return false;
+  if (end && date > end) return false;
+  return true;
+}
+
+function getDashboardFilters() {
+  const plantRaw = String(document.getElementById('dashPlantFilter')?.value || '').trim();
+  const fromDate = String(document.getElementById('dashFromDate')?.value || '').trim();
+  const toDate = String(document.getElementById('dashToDate')?.value || '').trim();
+  return {
+    plant: normalizePlantName(plantRaw) || plantRaw,
+    type: String(document.getElementById('dashTypeFilter')?.value || 'todos').trim(),
+    fromDate,
+    toDate,
+    search: String(document.getElementById('dashSearch')?.value || '').trim(),
+    searchNorm: normalizeMatchText(document.getElementById('dashSearch')?.value || '')
+  };
+}
+
+function getDashboardDateBounds(filters) {
+  const from = parseDateSafe(filters?.fromDate);
+  const to = parseDateSafe(filters?.toDate);
+  const start = from ? startOfDay(from) : null;
+  const end = to ? endOfDay(to) : null;
+  if (start && end && start > end) return { start: endOfDay(to), end: startOfDay(from) };
+  return { start, end };
+}
+
+function getDashboardTrendWindow(filters) {
+  const bounds = getDashboardDateBounds(filters);
+  const now = new Date();
+  const currentEnd = bounds.end || endOfDay(now);
+  const currentStart = bounds.start || startOfDay(new Date(currentEnd.getTime() - (29 * 24 * 60 * 60 * 1000)));
+  const windowMs = currentEnd.getTime() - currentStart.getTime();
+  const prevEnd = endOfDay(new Date(currentStart.getTime() - 1));
+  const prevStart = startOfDay(new Date(prevEnd.getTime() - windowMs));
+  return { currentStart, currentEnd, prevStart, prevEnd };
+}
+
+function formatTrend(delta) {
+  if (!Number.isFinite(delta) || delta === 0) return { text: '0', cls: 'trend-flat' };
+  if (delta > 0) return { text: `+${delta}`, cls: 'trend-up' };
+  return { text: `${delta}`, cls: 'trend-down' };
+}
+
+function buildDashboardContext() {
+  const filters = getDashboardFilters();
+  const bounds = getDashboardDateBounds(filters);
+  const term = filters.searchNorm;
+  const type = filters.type || 'todos';
+  const atMap = new Map(autotanques.map(at => [at.id, at]));
+  const stMap = new Map(normalizeEstaciones(estaciones).map(st => [st.id, st]));
+
+  const matchTerm = (...values) => {
+    if (!term) return true;
+    return values.some(v => normalizeMatchText(v).includes(term));
+  };
+
+  const atEntities = autotanques.filter(at => {
+    const plant = normalizePlantName(at.plantaActual || '');
+    if (filters.plant && plant !== filters.plant) return false;
+    return matchTerm(at.econ, at.placa, at.plantaActual, at.serieUnidad, at.serieTanque, at.notas);
+  });
+
+  const stEntities = normalizeEstaciones(estaciones).filter(st => {
+    const plant = normalizePlantName(st.planta || '');
+    if (filters.plant && plant !== filters.plant) return false;
+    return matchTerm(st.planta, st.estacion, st.bomba, (st.componentes || []).join(' '));
+  });
+
+  const autoComponentRowsAll = records
+    .map(rec => {
+      const at = atMap.get(rec.atId);
+      if (!at) return null;
+      const plant = normalizePlantName(at.plantaActual || '') || 'SIN PLANTA';
+      return {
+        id: rec.id,
+        entityType: 'autotanque',
+        entityId: at.id,
+        entityName: `${at.econ} | ${at.placa}`,
+        plant,
+        record: rec,
+        createdAt: parseDateSafe(rec.createdAt),
+        days: daysUntil(rec.replDate),
+        status: statusKey(daysUntil(rec.replDate))
+      };
+    })
+    .filter(Boolean)
+    .filter(row => {
+      if (filters.plant && row.plant !== filters.plant) return false;
+      return matchTerm(
+        row.entityName,
+        row.plant,
+        row.record.partNo,
+        row.record.partDesc,
+        row.record.partPn,
+        row.record.serial,
+        row.record.brand,
+        row.record.notes
+      );
+    });
+
+  const stationComponentRowsAll = stationRecords
+    .map(rec => {
+      const st = stMap.get(rec.stationId);
+      if (!st) return null;
+      const plant = normalizePlantName(st.planta || '') || 'SIN PLANTA';
+      return {
+        id: rec.id,
+        entityType: 'estacion',
+        entityId: st.id,
+        entityName: `${st.estacion} | ${st.bomba}`,
+        plant,
+        station: st,
+        record: rec,
+        createdAt: parseDateSafe(rec.createdAt),
+        days: daysUntil(rec.replDate),
+        status: statusKey(daysUntil(rec.replDate))
+      };
+    })
+    .filter(Boolean)
+    .filter(row => {
+      if (filters.plant && row.plant !== filters.plant) return false;
+      return matchTerm(
+        row.entityName,
+        row.plant,
+        row.record.partNo,
+        row.record.partDesc,
+        row.record.partPn,
+        row.record.serial,
+        row.record.brand,
+        row.record.notes
+      );
+    });
+
+  const byTypeAll = type === 'autotanque'
+    ? autoComponentRowsAll
+    : type === 'estacion'
+      ? stationComponentRowsAll
+      : [...autoComponentRowsAll, ...stationComponentRowsAll];
+
+  const byTypePeriod = byTypeAll.filter(row => {
+    if (!bounds.start && !bounds.end) return true;
+    return inRange(row.createdAt, bounds.start, bounds.end);
+  });
+
+  return {
+    filters,
+    bounds,
+    atEntities: type === 'estacion' ? [] : atEntities,
+    stEntities: type === 'autotanque' ? [] : stEntities,
+    componentRowsAll: byTypeAll,
+    componentRowsPeriod: byTypePeriod
+  };
+}
+
+function dashboardNavigate(metric) {
+  const filters = getDashboardFilters();
+  if (metric === 'autotanques') {
+    switchTab('autotanques');
+    const plantEl = document.getElementById('filterATPlant');
+    if (plantEl) plantEl.value = filters.plant || '';
+    renderAutotanques();
+    return;
+  }
+  if (metric === 'estaciones') {
+    switchTab('estaciones');
+    const plantEl = document.getElementById('filterEstPlant');
+    if (plantEl) plantEl.value = filters.plant || '';
+    renderEstaciones();
+    return;
+  }
+  switchTab('reemplazos');
+  const statusEl = document.getElementById('filterReplStatus');
+  if (statusEl) statusEl.value = metric === 'vencidos' ? 'vencido' : metric === 'criticos' ? 'critico' : '';
+  const searchEl = document.getElementById('searchRepl');
+  if (searchEl && filters.search) searchEl.value = filters.search;
+  renderReemplazos();
+}
+
+function openDashboardDrill(title, bodyHtml) {
+  const titleEl = document.getElementById('modalDashboardDrillTitle');
+  const bodyEl = document.getElementById('modalDashboardDrillBody');
+  if (!titleEl || !bodyEl) return;
+  titleEl.textContent = title;
+  bodyEl.innerHTML = bodyHtml;
+  document.getElementById('modalDashboardDrill')?.classList.add('open');
+}
+
+function dashboardOpenEntity(entityType, entityId) {
+  if (entityType === 'estacion') {
+    switchTab('estaciones');
+    openEstacionView(entityId);
+    return;
+  }
+  switchTab('autotanques');
+  viewAutotanque(entityId);
+}
+
+function dashboardOpenStatusDrill(status) {
+  const ctx = buildDashboardContext();
+  const rows = ctx.componentRowsAll.filter(r => r.status === status);
+  const statusTitle = status.toUpperCase().replace('-', ' ');
+  const html = rows.length
+    ? `<div class="table-wrap"><table><thead><tr><th>TIPO</th><th>UNIDAD/ESTACIÓN</th><th>PIEZA</th><th>DÍAS</th><th>ACCIONES</th></tr></thead><tbody>
+      ${rows.slice(0, 120).map(r => `<tr>
+        <td>${r.entityType === 'estacion' ? 'ESTACIÓN' : 'AUTOTANQUE'}</td>
+        <td>${escapeHtml(r.entityName)}</td>
+        <td>${escapeHtml(r.record.partNo || '')} — ${escapeHtml(r.record.partDesc || '')}</td>
+        <td>${r.days === null ? '—' : r.days}</td>
+        <td><button class="btn btn-secondary" style="padding:4px 8px;font-size:10px" onclick="dashboardOpenEntity('${r.entityType}','${r.entityId}')">VER</button></td>
+      </tr>`).join('')}
+    </tbody></table></div>`
+    : '<p class="text-muted">Sin registros para este estado.</p>';
+  openDashboardDrill(`Detalle estado: ${statusTitle}`, html);
+}
+
+function dashboardOpenPlantDrill(plant) {
+  const ctx = buildDashboardContext();
+  const rows = ctx.componentRowsAll.filter(r => r.plant === plant);
+  const html = rows.length
+    ? `<div class="table-wrap"><table><thead><tr><th>TIPO</th><th>UNIDAD/ESTACIÓN</th><th>PIEZA</th><th>ESTADO</th><th>ACCIÓN</th></tr></thead><tbody>
+      ${rows.slice(0, 150).map(r => `<tr>
+        <td>${r.entityType === 'estacion' ? 'ESTACIÓN' : 'AUTOTANQUE'}</td>
+        <td>${escapeHtml(r.entityName)}</td>
+        <td>${escapeHtml(r.record.partNo || '')} — ${escapeHtml(r.record.partDesc || '')}</td>
+        <td>${statusBadge(r.days)}</td>
+        <td><button class="btn btn-secondary" style="padding:4px 8px;font-size:10px" onclick="dashboardOpenEntity('${r.entityType}','${r.entityId}')">ABRIR</button></td>
+      </tr>`).join('')}
+    </tbody></table></div>`
+    : '<p class="text-muted">Sin registros en esta planta con los filtros actuales.</p>';
+  openDashboardDrill(`Planta ${plant}: detalle de componentes`, html);
+}
+
+function dashboardOpenMonthDrill(monthKey) {
+  const ctx = buildDashboardContext();
+  const rows = ctx.componentRowsAll.filter(r => String(r.record.replDate || '').startsWith(`${monthKey}-`));
+  const html = rows.length
+    ? `<div class="table-wrap"><table><thead><tr><th>TIPO</th><th>UNIDAD/ESTACIÓN</th><th>PIEZA</th><th>F.REEMPLAZO</th><th>ESTADO</th></tr></thead><tbody>
+      ${rows.slice(0, 120).map(r => `<tr>
+        <td>${r.entityType === 'estacion' ? 'ESTACIÓN' : 'AUTOTANQUE'}</td>
+        <td>${escapeHtml(r.entityName)}</td>
+        <td>${escapeHtml(r.record.partNo || '')} — ${escapeHtml(r.record.partDesc || '')}</td>
+        <td>${formatDate(r.record.replDate)}</td>
         <td>${statusBadge(r.days)}</td>
       </tr>`).join('')}
-    </tbody></table>`;
+    </tbody></table></div>`
+    : '<p class="text-muted">Sin vencimientos programados en este mes.</p>';
+  openDashboardDrill(`Vencimientos programados en ${monthKey}`, html);
+}
+
+function resetDashboardFilters() {
+  const defaults = {
+    dashPlantFilter: '',
+    dashTypeFilter: 'todos',
+    dashFromDate: '',
+    dashToDate: '',
+    dashSearch: ''
+  };
+  Object.entries(defaults).forEach(([id, value]) => {
+    const el = document.getElementById(id);
+    if (el) el.value = value;
+  });
+  renderDashboard();
+}
+
+function bindDashboardControls() {
+  const map = [
+    ['dashPlantFilter', 'change'],
+    ['dashTypeFilter', 'change'],
+    ['dashFromDate', 'change'],
+    ['dashToDate', 'change'],
+    ['dashSearch', 'input']
+  ];
+  map.forEach(([id, evt]) => {
+    const el = document.getElementById(id);
+    if (!el || el.dataset.bound === '1') return;
+    el.addEventListener(evt, renderDashboard);
+    el.dataset.bound = '1';
+  });
+  const resetBtn = document.getElementById('dashResetBtn');
+  if (resetBtn && resetBtn.dataset.bound !== '1') {
+    resetBtn.addEventListener('click', resetDashboardFilters);
+    resetBtn.dataset.bound = '1';
+  }
+}
+
+function renderDashboard() {
+  const ctx = buildDashboardContext();
+  const period = getDashboardTrendWindow(ctx.filters);
+  const rows = ctx.componentRowsPeriod;
+  const rowsAll = ctx.componentRowsAll;
+
+  const totalAT = ctx.atEntities.length;
+  const totalStations = ctx.stEntities.length;
+  const totalRec = rows.length;
+  const vencidos = rows.filter(r => r.status === 'vencido').length;
+  const criticos = rows.filter(r => r.status === 'critico').length;
+
+  const atCur = ctx.atEntities.filter(at => inRange(inferCreatedAt(at), period.currentStart, period.currentEnd)).length;
+  const atPrev = ctx.atEntities.filter(at => inRange(inferCreatedAt(at), period.prevStart, period.prevEnd)).length;
+  const stCur = ctx.stEntities.filter(st => inRange(inferCreatedAt(st), period.currentStart, period.currentEnd)).length;
+  const stPrev = ctx.stEntities.filter(st => inRange(inferCreatedAt(st), period.prevStart, period.prevEnd)).length;
+  const recCur = rowsAll.filter(r => inRange(r.createdAt, period.currentStart, period.currentEnd)).length;
+  const recPrev = rowsAll.filter(r => inRange(r.createdAt, period.prevStart, period.prevEnd)).length;
+  const vencidosPrev = rowsAll.filter(r => dashboardStatusFromDays(daysUntilFrom(r.record.replDate, period.prevEnd)) === 'vencido').length;
+  const criticosPrev = rowsAll.filter(r => dashboardStatusFromDays(daysUntilFrom(r.record.replDate, period.prevEnd)) === 'critico').length;
+
+  const tAt = formatTrend(atCur - atPrev);
+  const tSt = formatTrend(stCur - stPrev);
+  const tRec = formatTrend(recCur - recPrev);
+  const tVen = formatTrend(vencidos - vencidosPrev);
+  const tCri = formatTrend(criticos - criticosPrev);
+
+  document.getElementById('statsGrid').innerHTML = `
+    <div class="stat-card stat-blue clickable" onclick="dashboardNavigate('autotanques')">
+      <div class="stat-value">${totalAT}</div>
+      <div class="stat-label">AUTOTANQUES</div>
+      <div class="stat-trend ${tAt.cls}">Tendencia periodo: ${tAt.text}</div>
+    </div>
+    <div class="stat-card stat-blue clickable" onclick="dashboardNavigate('estaciones')">
+      <div class="stat-value">${totalStations}</div>
+      <div class="stat-label">ESTACIONES DE CARBURACIÓN</div>
+      <div class="stat-trend ${tSt.cls}">Tendencia periodo: ${tSt.text}</div>
+    </div>
+    <div class="stat-card stat-green clickable" onclick="dashboardNavigate('componentes')">
+      <div class="stat-value">${totalRec}</div>
+      <div class="stat-label">COMPONENTES REGISTRADOS</div>
+      <div class="stat-trend ${tRec.cls}">Capturas periodo: ${tRec.text}</div>
+    </div>
+    <div class="stat-card stat-red clickable" onclick="dashboardNavigate('vencidos')">
+      <div class="stat-value">${vencidos}</div>
+      <div class="stat-label">VENCIDOS</div>
+      <div class="stat-trend ${tVen.cls}">Vs periodo previo: ${tVen.text}</div>
+    </div>
+    <div class="stat-card stat-amber clickable" onclick="dashboardNavigate('criticos')">
+      <div class="stat-value">${criticos}</div>
+      <div class="stat-label">CRÍTICOS (≤90 DÍAS)</div>
+      <div class="stat-trend ${tCri.cls}">Vs periodo previo: ${tCri.text}</div>
+    </div>
+  `;
+
+  const alertItems = [];
+  if (vencidos > 0) {
+    alertItems.push(`<div class="alert-item"><strong>${vencidos} componente(s) vencidos.</strong><div class="alert-actions"><button class="btn btn-danger" style="padding:4px 8px;font-size:10px" onclick="dashboardNavigate('vencidos')">VER VENCIDOS</button></div></div>`);
+  }
+  if (criticos > 0) {
+    alertItems.push(`<div class="alert-item"><strong>${criticos} componente(s) críticos en 90 días.</strong><div class="alert-actions"><button class="btn btn-secondary" style="padding:4px 8px;font-size:10px" onclick="dashboardNavigate('criticos')">REVISAR CRÍTICOS</button></div></div>`);
+  }
+  const atWithoutComponents = ctx.atEntities.filter(at => !records.some(r => r.atId === at.id)).length;
+  if (atWithoutComponents > 0 && ctx.filters.type !== 'estacion') {
+    alertItems.push(`<div class="alert-item"><strong>${atWithoutComponents} autotanque(s) sin componentes capturados.</strong><div class="alert-actions"><button class="btn btn-secondary" style="padding:4px 8px;font-size:10px" onclick="switchTab('registro')">CAPTURAR AHORA</button></div></div>`);
+  }
+  const stWithoutComponents = ctx.stEntities.filter(st => !stationRecords.some(r => r.stationId === st.id)).length;
+  if (stWithoutComponents > 0 && ctx.filters.type !== 'autotanque') {
+    alertItems.push(`<div class="alert-item"><strong>${stWithoutComponents} estación(es) sin componentes capturados.</strong><div class="alert-actions"><button class="btn btn-secondary" style="padding:4px 8px;font-size:10px" onclick="switchTab('registro')">CAPTURAR EN ESTACIÓN</button></div></div>`);
+  }
+  document.getElementById('dashboardAlerts').innerHTML = alertItems.length
+    ? `<div class="alert-list">${alertItems.join('')}</div>`
+    : '<p class="text-muted">No hay alertas de riesgo con los filtros actuales.</p>';
+
+  const smartBox = document.getElementById('dashboardSmartResults');
+  if (smartBox) {
+    if (!ctx.filters.searchNorm) {
+      smartBox.innerHTML = '<p class="text-muted">Escribe un término para ver resultados de unidades, estaciones y componentes.</p>';
+    } else {
+      const smartMatches = [];
+      ctx.atEntities.forEach(at => smartMatches.push({ kind: 'AUTOTANQUE', title: `${at.econ} | ${at.placa}`, subtitle: at.plantaActual || 'SIN PLANTA', action: `dashboardOpenEntity('autotanque','${at.id}')` }));
+      ctx.stEntities.forEach(st => smartMatches.push({ kind: 'ESTACIÓN', title: `${st.estacion} | ${st.bomba}`, subtitle: st.planta, action: `dashboardOpenEntity('estacion','${st.id}')` }));
+      rowsAll.slice(0, 80).forEach(r => smartMatches.push({
+        kind: 'COMPONENTE',
+        title: `${r.record.partNo || ''} — ${r.record.partDesc || ''}`,
+        subtitle: `${r.entityName} | ${r.plant}`,
+        action: `dashboardOpenEntity('${r.entityType}','${r.entityId}')`
+      }));
+      const dedup = [];
+      const seen = new Set();
+      smartMatches.forEach(m => {
+        const key = `${m.kind}|${m.title}|${m.subtitle}`;
+        if (seen.has(key)) return;
+        seen.add(key);
+        dedup.push(m);
+      });
+      smartBox.innerHTML = dedup.length
+        ? `<div class="smart-results">${dedup.slice(0, 10).map(m => `
+          <div class="smart-item">
+            <div><b>${escapeHtml(m.kind)}</b> — ${escapeHtml(m.title)}</div>
+            <div class="text-muted">${escapeHtml(m.subtitle || '')}</div>
+            <div class="alert-actions"><button class="btn btn-secondary" style="padding:4px 8px;font-size:10px" onclick="${m.action}">ABRIR</button></div>
+          </div>`).join('')}</div>`
+        : '<p class="text-muted">Sin coincidencias.</p>';
+    }
   }
 
-  // Recent activity
-  const recent = [...records]
-    .sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt))
-    .slice(0, 5);
-  const actDiv = document.getElementById('recentActivity');
-  if (!recent.length) {
-    actDiv.innerHTML = '<p class="text-muted">Sin registros aún.</p>';
+  const plantCounts = new Map();
+  rows.forEach(r => plantCounts.set(r.plant, (plantCounts.get(r.plant) || 0) + 1));
+  const plantRows = Array.from(plantCounts.entries()).sort((a, b) => b[1] - a[1]);
+  const maxPlant = plantRows.length ? plantRows[0][1] : 1;
+  document.getElementById('dashboardPlantBars').innerHTML = plantRows.length
+    ? `<div class="mini-bars">${plantRows.map(([plant, count]) => `
+      <div class="mini-bar-row">
+        <button class="mini-bar-label" onclick="dashboardOpenPlantDrill(decodeURIComponent('${encodeURIComponent(plant)}'))">${escapeHtml(plant)}</button>
+        <div class="mini-bar-track"><div class="mini-bar-fill" style="width:${(count / maxPlant) * 100}%"></div></div>
+        <span class="mini-bar-value">${count}</span>
+      </div>`).join('')}</div>`
+    : '<p class="text-muted">Sin datos por planta para el filtro actual.</p>';
+
+  const statusPalette = {
+    vencido: '#dc2626',
+    critico: '#d97706',
+    proximo: '#f59e0b',
+    vigente: '#16a34a',
+    'sin-fecha': '#64748b'
+  };
+  const statusCounts = {
+    vencido: rows.filter(r => r.status === 'vencido').length,
+    critico: rows.filter(r => r.status === 'critico').length,
+    proximo: rows.filter(r => r.status === 'proximo').length,
+    vigente: rows.filter(r => r.status === 'vigente').length,
+    'sin-fecha': rows.filter(r => r.status === 'sin-fecha').length
+  };
+  const totalStatus = Object.values(statusCounts).reduce((acc, n) => acc + n, 0);
+  if (!totalStatus) {
+    document.getElementById('dashboardStatusDonut').innerHTML = '<p class="text-muted">Sin registros para construir estado global.</p>';
   } else {
-    actDiv.innerHTML = recent.map(r => {
-      const at = autotanques.find(a => a.id === r.atId);
-      const d = new Date(r.createdAt);
-      return `<div style="padding:8px 0;border-bottom:1px solid var(--border)">
-        <div style="font-size:12px"><b style="color:var(--accent)">${at?.econ||'?'}</b> — Pieza ${r.partNo}: ${r.partDesc.slice(0,40)}</div>
-        <div class="text-muted">${d.toLocaleString('es-MX')}</div>
-      </div>`;
-    }).join('');
+    const slices = [];
+    let cursor = 0;
+    Object.entries(statusCounts).forEach(([k, v]) => {
+      if (!v) return;
+      const pct = (v / totalStatus) * 100;
+      slices.push(`${statusPalette[k]} ${cursor}% ${cursor + pct}%`);
+      cursor += pct;
+    });
+    const labelMap = { vencido: 'Vencido', critico: 'Crítico', proximo: 'Próximo', vigente: 'Vigente', 'sin-fecha': 'Sin fecha' };
+    document.getElementById('dashboardStatusDonut').innerHTML = `
+      <div class="donut-wrap">
+        <div class="donut-chart" style="background:conic-gradient(${slices.join(', ')})">
+          <div class="donut-center"><b>${totalStatus}</b><span class="kpi-subnote">TOTAL</span></div>
+        </div>
+        <div class="donut-legend">
+          ${Object.entries(statusCounts).map(([k, v]) => `
+            <div class="donut-item">
+              <button onclick="dashboardOpenStatusDrill('${k}')"><span><span class="dot" style="background:${statusPalette[k]}"></span>${labelMap[k]}</span></button>
+              <b>${v}</b>
+            </div>`).join('')}
+        </div>
+      </div>
+    `;
   }
+
+  const monthMap = new Map();
+  const baseMonth = new Date();
+  for (let i = 0; i < 12; i++) {
+    const d = new Date(baseMonth.getFullYear(), baseMonth.getMonth() + i, 1);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    monthMap.set(key, 0);
+  }
+  rowsAll.forEach(r => {
+    if (!r.record.replDate) return;
+    const monthKey = String(r.record.replDate).slice(0, 7);
+    if (monthMap.has(monthKey)) monthMap.set(monthKey, monthMap.get(monthKey) + 1);
+  });
+  const monthEntries = Array.from(monthMap.entries());
+  const maxMonth = Math.max(1, ...monthEntries.map(([, n]) => n));
+  const w = Math.max(560, monthEntries.length * 56);
+  const h = 220;
+  const padX = 34;
+  const padY = 30;
+  const stepX = (w - (padX * 2)) / Math.max(1, monthEntries.length - 1);
+  const points = monthEntries.map(([, n], idx) => {
+    const x = padX + (idx * stepX);
+    const y = (h - padY) - ((n / maxMonth) * (h - (padY * 2)));
+    return { x, y, n };
+  });
+  const polyline = points.map(p => `${p.x},${p.y}`).join(' ');
+  document.getElementById('dashboardMonthLine').innerHTML = `
+    <div class="line-svg-wrap">
+      <svg class="line-svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
+        <line x1="${padX}" y1="${h - padY}" x2="${w - padX}" y2="${h - padY}" stroke="#94a3b8" stroke-width="1"></line>
+        <polyline fill="none" stroke="#0369a1" stroke-width="2.5" points="${polyline}"></polyline>
+        ${points.map((p, i) => `<circle class="line-point" cx="${p.x}" cy="${p.y}" r="4" fill="#0ea5e9" onclick="dashboardOpenMonthDrill('${monthEntries[i][0]}')"><title>${monthEntries[i][0]}: ${p.n}</title></circle>`).join('')}
+        ${monthEntries.map(([k], i) => `<text x="${points[i].x}" y="${h - 10}" text-anchor="middle">${k.slice(5)}</text>`).join('')}
+      </svg>
+    </div>
+    <div class="kpi-subnote">Haz clic en un punto para abrir el detalle del mes.</div>
+  `;
+
+  const riskMap = new Map();
+  rowsAll.forEach(r => {
+    const key = `${r.entityType}|${r.entityId}`;
+    if (!riskMap.has(key)) {
+      riskMap.set(key, {
+        entityType: r.entityType,
+        entityId: r.entityId,
+        name: r.entityName,
+        plant: r.plant,
+        total: 0,
+        vencidos: 0,
+        criticos: 0,
+        proximos: 0
+      });
+    }
+    const acc = riskMap.get(key);
+    acc.total += 1;
+    if (r.status === 'vencido') acc.vencidos += 1;
+    if (r.status === 'critico') acc.criticos += 1;
+    if (r.status === 'proximo') acc.proximos += 1;
+  });
+  const riskRows = Array.from(riskMap.values()).map(r => ({
+    ...r,
+    score: (r.vencidos * 3) + (r.criticos * 2) + r.proximos
+  })).sort((a, b) => b.score - a.score || b.vencidos - a.vencidos || b.criticos - a.criticos);
+
+  document.getElementById('dashboardRiskTable').innerHTML = riskRows.length
+    ? `<table><thead><tr><th>TIPO</th><th>UNIDAD/ESTACIÓN</th><th>RIESGO</th><th>DETALLE</th><th>ACCIÓN</th></tr></thead><tbody>
+      ${riskRows.slice(0, 10).map(r => `<tr>
+        <td>${r.entityType === 'estacion' ? 'ESTACIÓN' : 'AUTOTANQUE'}</td>
+        <td>${escapeHtml(r.name)}</td>
+        <td><span class="risk-score">Score ${r.score}</span></td>
+        <td>${r.vencidos} venc. | ${r.criticos} crít. | ${r.proximos} próx.</td>
+        <td><button class="btn btn-secondary" style="padding:4px 8px;font-size:10px" onclick="dashboardOpenEntity('${r.entityType}','${r.entityId}')">ABRIR</button></td>
+      </tr>`).join('')}
+    </tbody></table>`
+    : '<p class="text-muted">Sin datos de riesgo para el filtro actual.</p>';
+
+  const critRecs = rows
+    .filter(r => r.days !== null && r.days <= 90)
+    .sort((a, b) => a.days - b.days)
+    .slice(0, 10);
+
+  document.getElementById('criticalList').innerHTML = critRecs.length
+    ? `<table><thead><tr><th>TIPO</th><th>UNIDAD/ESTACIÓN</th><th>PIEZA</th><th>DÍAS</th><th>ESTADO</th></tr></thead><tbody>
+      ${critRecs.map(r => `<tr>
+        <td>${r.entityType === 'estacion' ? 'ESTACIÓN' : 'AUTOTANQUE'}</td>
+        <td><b style="color:var(--accent)">${escapeHtml(r.entityName)}</b></td>
+        <td>${escapeHtml(r.record.partNo || '')} — ${escapeHtml(String(r.record.partDesc || '').slice(0, 34))}</td>
+        <td style="font-family:monospace">${r.days < 0 ? 'VENCIDO' : `${r.days} días`}</td>
+        <td>${statusBadge(r.days)}</td>
+      </tr>`).join('')}
+    </tbody></table>`
+    : '<p style="color:var(--ok);font-size:13px;padding:10px 0">Sin vencimientos críticos próximos.</p>';
+
+  const recent = [...rowsAll]
+    .sort((a, b) => new Date(b.record.createdAt || 0) - new Date(a.record.createdAt || 0))
+    .slice(0, 8);
+  document.getElementById('recentActivity').innerHTML = recent.length
+    ? recent.map(r => {
+        const d = parseDateSafe(r.record.createdAt);
+        return `<div style="padding:8px 0;border-bottom:1px solid var(--border)">
+          <div style="font-size:12px"><b style="color:var(--accent)">${r.entityType === 'estacion' ? 'EST.' : 'AT.'}</b> ${escapeHtml(r.entityName)} — Pieza ${escapeHtml(r.record.partNo || '')}: ${escapeHtml(String(r.record.partDesc || '').slice(0, 40))}</div>
+          <div class="text-muted">${d ? d.toLocaleString('es-MX') : 'Sin fecha'}</div>
+        </div>`;
+      }).join('')
+    : '<p class="text-muted">Sin registros aún.</p>';
+
+  const semMap = new Map();
+  rowsAll.forEach(r => {
+    if (!semMap.has(r.plant)) semMap.set(r.plant, { total: 0, alertas: 0, vencidos: 0, criticos: 0 });
+    const item = semMap.get(r.plant);
+    item.total += 1;
+    if (r.status === 'vencido') { item.alertas += 1; item.vencidos += 1; }
+    if (r.status === 'critico') { item.alertas += 1; item.criticos += 1; }
+  });
+  const semRows = Array.from(semMap.entries()).map(([plant, s]) => {
+    const pct = s.total ? Math.round((s.alertas / s.total) * 100) : 0;
+    const level = pct >= 25 ? 'danger' : pct >= 10 ? 'warn' : 'ok';
+    return { plant, ...s, pct, level };
+  }).sort((a, b) => b.pct - a.pct);
+  document.getElementById('dashboardPlantSemaforo').innerHTML = semRows.length
+    ? `<div class="semaforo-grid">${semRows.map(s => `
+      <div class="semaforo-card ${s.level}" onclick="dashboardOpenPlantDrill(decodeURIComponent('${encodeURIComponent(s.plant)}'))">
+        <div class="title">${escapeHtml(s.plant)}</div>
+        <div class="meta">${s.alertas}/${s.total} en alerta (${s.pct}%)</div>
+        <div class="meta">${s.vencidos} vencidos | ${s.criticos} críticos</div>
+      </div>`).join('')}</div>`
+    : '<p class="text-muted">Sin datos para semáforo por planta.</p>';
 }
 
 // ── MODALS ────────────────────────────────────────────────────────────
@@ -2101,6 +4014,9 @@ async function closeModal(id) {
   if (id === 'modalRecordEdit') {
     editingRecordId = null;
   }
+  if (id === 'modalEstacionEdit') {
+    editingEstacionId = null;
+  }
   document.getElementById(id).classList.remove('open');
 }
 window.addEventListener('click', e => {
@@ -2110,6 +4026,10 @@ window.addEventListener('click', e => {
   } else {
     e.target.classList.remove('open');
   }
+});
+window.addEventListener('resize', () => {
+  syncAutotanquesMatrixScroll();
+  syncReemplazosMatrixScroll();
 });
 
 // ── EXPORT / IMPORT ───────────────────────────────────────────────────
@@ -2175,7 +4095,7 @@ function exportFormatoValvulasPorPlanta() {
     'V. MAXIMO LLENADO (3)',
     'V. INTERNA DE 2"',
     'V. SEGURIDAD 3"',
-    'MANGUERA MODELO 20BHB'
+    'MANGUERA DE SUMISTRO MODELO 20BHB'
   ];
   const rows = [new Array(headers.length).fill(''), headers];
   units.forEach(at => {
@@ -2248,7 +4168,7 @@ function downloadCSV(filename, rows) {
 }
 
 function exportJSON() {
-  const data = { autotanques, records, partImages, exportedAt: new Date().toISOString() };
+  const data = { autotanques, records, stationRecords, partImages, exportedAt: new Date().toISOString() };
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([JSON.stringify(data,null,2)], {type:'application/json'}));
   a.download = 'respaldo_inventario_NOM007.json';
@@ -2390,15 +4310,17 @@ async function handleImportUnitsCSV(e) {
         if (indexByEcon.has(key)) {
           const i = indexByEcon.get(key);
           const current = nextUnits[i];
-          const merged = {
-            ...current,
-            econ,
-            placa,
-            plantaActual: plantaActual || current.plantaActual || '',
+        const merged = {
+          ...current,
+          econ,
+          placa,
+          plantaActual: plantaActual || current.plantaActual || '',
             serieUnidad: serieUnidad || current.serieUnidad || '',
             serieTanque: serieTanque || current.serieTanque || '',
             capacidad: capacidad || current.capacidad || '',
             anio: anio || current.anio || '',
+            marcaUnidad: marca || current.marcaUnidad || '',
+            modeloUnidad: modelo || current.modeloUnidad || '',
             notas: notasFinal || current.notas || '',
             expediente: normalizeExpediente(current.expediente)
           };
@@ -2406,18 +4328,22 @@ async function handleImportUnitsCSV(e) {
           changedUnits.push(merged);
           updated++;
         } else {
-          const created = {
-            id: genId(),
-            econ,
-            placa,
-            plantaActual,
-            serieUnidad,
-            serieTanque,
+        const created = {
+          id: genId(),
+          econ,
+          placa,
+          plantaActual,
+          serieUnidad,
+          serieTanque,
             capacidad,
             anio,
+            marcaUnidad: marca,
+            modeloUnidad: modelo,
+            activo: true,
+            enServicio: true,
             notas: notasFinal,
-            expediente: []
-          };
+          expediente: []
+        };
           nextUnits.push(created);
           indexByEcon.set(key, nextUnits.length - 1);
           changedUnits.push(created);
@@ -2455,24 +4381,34 @@ function handleImport(e) {
     try {
       const data = JSON.parse(ev.target.result);
       const hasPartImages = Object.prototype.hasOwnProperty.call(data || {}, 'partImages');
+      const hasStationRecords = Object.prototype.hasOwnProperty.call(data || {}, 'stationRecords');
       const incomingPartImagesCount = hasPartImages
         ? Object.keys(data.partImages || {}).length
         : Object.keys(partImages || {}).length;
+      const incomingStationRecordsCount = hasStationRecords
+        ? (Array.isArray(data.stationRecords) ? data.stationRecords.length : 0)
+        : stationRecords.length;
       const partImagesText = hasPartImages
         ? `${incomingPartImagesCount} imágenes de piezas`
         : `conservar imágenes actuales (${incomingPartImagesCount})`;
-      if (!confirm(`¿Importar ${data.autotanques?.length||0} autotanques, ${data.records?.length||0} registros y ${partImagesText}? Esto REEMPLAZARÁ los datos actuales.`)) return;
+      const stationRecordsText = hasStationRecords
+        ? `${incomingStationRecordsCount} registros de estaciones`
+        : `conservar registros de estaciones actuales (${incomingStationRecordsCount})`;
+      if (!confirm(`¿Importar ${data.autotanques?.length||0} autotanques, ${data.records?.length||0} registros, ${stationRecordsText} y ${partImagesText}? Esto REEMPLAZARÁ los datos actuales.`)) return;
       autotanques = normalizeAutotanques(data.autotanques || []);
       records     = data.records || [];
+      stationRecords = hasStationRecords ? normalizeStationRecords(data.stationRecords || []) : normalizeStationRecords(stationRecords);
       const policySync = applyReplacementPolicyToRecords(records);
       records = policySync.records;
       partImages  = hasPartImages ? normalizePartImages(data.partImages || {}) : normalizePartImages(partImages);
       const replaceImagesPayload = hasPartImages ? partImages : null;
-      if (runtimeUseSupabase && !(await replaceRemoteData(autotanques, records, replaceImagesPayload))) return;
+      const replaceStationRecordsPayload = hasStationRecords ? stationRecords : null;
+      if (runtimeUseSupabase && !(await replaceRemoteData(autotanques, records, replaceImagesPayload, replaceStationRecordsPayload))) return;
       if (!save()) return;
       populatePlantSelectors();
       renderDashboard();
       renderAutotanques();
+      renderEstaciones();
       populateATSelect();
       refreshSelectedPartImageUI();
       alert('✅ Importación exitosa.');

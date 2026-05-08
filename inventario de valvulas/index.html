@@ -48,6 +48,7 @@
   <div class="tabs">
     <button class="tab-btn active" onclick="switchTab('dashboard')">📊 DASHBOARD</button>
     <button class="tab-btn" onclick="switchTab('autotanques')">🚛 AUTOTANQUES</button>
+    <button class="tab-btn" onclick="switchTab('estaciones')">⛽ ESTACIONES DE CARBURACIÓN</button>
     <button class="tab-btn" onclick="switchTab('registro')">➕ REGISTRAR COMPONENTE</button>
     <button class="tab-btn" onclick="switchTab('reemplazos')">⚠️ PRÓXIMOS REEMPLAZOS</button>
     <button class="tab-btn" onclick="switchTab('exportar')">📥 EXPORTAR</button>
@@ -55,19 +56,87 @@
 
   <!-- ── DASHBOARD ────────────────────────── -->
   <div id="tab-dashboard" class="tab-panel active">
+    <div class="search-row dashboard-controls">
+      <div style="min-width:220px">
+        <label>PLANTA</label>
+        <select id="dashPlantFilter">
+          <option value="">Todas las plantas</option>
+        </select>
+      </div>
+      <div style="min-width:180px">
+        <label>TIPO</label>
+        <select id="dashTypeFilter">
+          <option value="todos">Todo</option>
+          <option value="autotanque">Autotanques</option>
+          <option value="estacion">Estaciones</option>
+        </select>
+      </div>
+      <div style="min-width:180px">
+        <label>DESDE</label>
+        <input type="date" id="dashFromDate">
+      </div>
+      <div style="min-width:180px">
+        <label>HASTA</label>
+        <input type="date" id="dashToDate">
+      </div>
+      <div class="search-input-wrap" style="min-width:260px">
+        <span class="search-icon">🔎</span>
+        <input type="text" id="dashSearch" placeholder="Buscar: económico, pieza, estación, planta...">
+      </div>
+      <button class="btn btn-secondary" type="button" id="dashResetBtn">LIMPIAR FILTROS</button>
+    </div>
     <div class="stats-grid" id="statsGrid"></div>
+
+    <div class="card dashboard-panel-full" style="margin-bottom:14px">
+      <div class="card-title">ALERTAS ACCIONABLES</div>
+      <div id="dashboardAlerts">
+        <p class="text-muted">Sin alertas por ahora.</p>
+      </div>
+    </div>
+
     <div class="grid-2">
       <div class="card">
+        <div class="card-title">COMPONENTES CAPTURADOS POR PLANTA</div>
+        <div id="dashboardPlantBars"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">ESTADO GLOBAL DE REEMPLAZOS</div>
+        <div id="dashboardStatusDonut">
+          <p class="text-muted">Cargando...</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid-2 dashboard-main-grid">
+      <div class="card dashboard-panel">
+        <div class="card-title">VENCIMIENTOS POR MES</div>
+        <div id="dashboardMonthLine"></div>
+      </div>
+      <div class="card dashboard-panel">
+        <div class="card-title">SEMÁFORO POR PLANTA</div>
+        <div id="dashboardPlantSemaforo"></div>
+      </div>
+    </div>
+
+    <div class="grid-2 dashboard-main-grid">
+      <div class="card dashboard-panel">
+        <div class="card-title">TOP RIESGOS</div>
+        <div id="dashboardRiskTable" class="table-wrap">
+          <p class="text-muted">Sin datos.</p>
+        </div>
+      </div>
+      <div class="card dashboard-panel">
         <div class="card-title">VENCIMIENTOS CRÍTICOS (≤ 90 DÍAS)</div>
         <div id="criticalList" class="table-wrap">
           <p class="text-muted">Cargando...</p>
         </div>
       </div>
-      <div class="card">
-        <div class="card-title">ACTIVIDAD RECIENTE</div>
-        <div id="recentActivity">
-          <p class="text-muted">Sin registros aún.</p>
-        </div>
+    </div>
+
+    <div class="card dashboard-panel dashboard-panel-full">
+      <div class="card-title">ACTIVIDAD RECIENTE</div>
+      <div id="recentActivity">
+        <p class="text-muted">Sin registros aún.</p>
       </div>
     </div>
   </div>
@@ -120,6 +189,41 @@
     </div>
   </div>
 
+  <!-- ── ESTACIONES DE CARBURACIÓN ───────── -->
+  <div id="tab-estaciones" class="tab-panel">
+    <div class="at-header">
+      <div class="card-title" style="margin:0">ESTACIONES DE CARBURACIÓN</div>
+      <div class="flex-gap">
+        <select id="filterEstPlant" onchange="renderEstaciones()" title="Filtrar por planta">
+          <option value="">Todas las plantas</option>
+          <option value="QUERETARO">QUERETARO</option>
+          <option value="BALVANERA">BALVANERA</option>
+          <option value="GALERAS">GALERAS</option>
+          <option value="PEDRO ESCOBEDO">PEDRO ESCOBEDO</option>
+        </select>
+        <div class="search-input-wrap">
+          <span class="search-icon">🔍</span>
+          <input type="text" id="searchEst" placeholder="Buscar por planta, estación o bomba..." oninput="renderEstaciones()">
+        </div>
+      </div>
+    </div>
+    <div class="table-wrap card">
+      <table>
+        <thead>
+          <tr>
+            <th>PLANTA</th>
+            <th>ESTACIÓN DE CARBURACIÓN</th>
+            <th>NÚMERO DE BOMBA</th>
+            <th>COMPONENTES</th>
+            <th>ESTADO</th>
+            <th>ACCIONES</th>
+          </tr>
+        </thead>
+        <tbody id="tableEstaciones"></tbody>
+      </table>
+    </div>
+  </div>
+
   <!-- ── REGISTRO COMPONENTE ──────────────── -->
   <div id="tab-registro" class="tab-panel">
     <div class="grid-2" style="gap:20px;align-items:start">
@@ -158,9 +262,22 @@
       <div class="card">
         <div class="card-title">DATOS DE REGISTRO</div>
         <div style="margin-bottom:14px">
-          <label>AUTOTANQUE</label>
+          <label>TIPO DE REGISTRO</label>
+          <select id="formTargetType" onchange="toggleRegistroTarget()">
+            <option value="autotanque">Autotanque</option>
+            <option value="estacion">Estación de carburación</option>
+          </select>
+        </div>
+        <div style="margin-bottom:14px" id="formATWrap">
+          <label id="formTargetLabel">AUTOTANQUE</label>
           <select id="formAT">
             <option value="">— Seleccionar autotanque —</option>
+          </select>
+        </div>
+        <div style="margin-bottom:14px;display:none" id="formStationWrap">
+          <label>ESTACIÓN DE CARBURACIÓN</label>
+          <select id="formStation">
+            <option value="">— Seleccionar estación —</option>
           </select>
         </div>
         <div id="selectedPartInfo" style="margin-bottom:14px; display:none">
@@ -198,12 +315,17 @@
           <textarea id="formNotes" rows="2" placeholder="Observaciones adicionales..."></textarea>
           <p class="text-muted mt-12">Si el autotanque no cuenta con la válvula, puedes dejar sin fecha y guardar con la observación en notas.</p>
         </div>
+        <div style="margin-bottom:14px; display:none" id="formSealEvidenceWrap">
+          <label>EVIDENCIA DE SELLOS (15 A 20 ARCHIVOS)</label>
+          <input type="file" id="formSealEvidence" accept=".jpg,.jpeg,.png,.webp,.pdf" multiple>
+          <p class="text-muted mt-12" id="formSealEvidenceHint">Este requisito aplica solo al componente "Sello de seguridad" en autotanques.</p>
+        </div>
         <div class="section-sep"></div>
         <div class="flex-gap">
           <button class="btn btn-primary" onclick="saveComponentRecord()">💾 GUARDAR REGISTRO</button>
           <button class="btn btn-secondary" onclick="clearForm()">✕ LIMPIAR</button>
         </div>
-        <p class="text-muted mt-12">NOM-EM-007-ASEA-2025: sustitución obligatoria cada 10 años.</p>
+        <p class="text-muted mt-12">NOM-EM-007-ASEA-2025: regla general de sustitución a 10 años. Excepción: Manguera De  Sumistro Modelo 20BHB con máximo 5 años desde fabricación.</p>
       </div>
     </div>
   </div>
@@ -230,24 +352,26 @@
         </select>
       </div>
     </div>
-    <div class="card table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>AUTOTANQUE</th>
-            <th>PIEZA No.</th>
-            <th>DESCRIPCIÓN</th>
-            <th>NÚMERO DE PARTE</th>
-            <th>F. FABRICACIÓN</th>
-            <th>F. INSTALACIÓN</th>
-            <th>F. REEMPLAZO</th>
-            <th>DÍAS RESTANTES</th>
-            <th>ESTADO</th>
-            <th>ACCIONES</th>
-          </tr>
-        </thead>
-        <tbody id="tableReemplazos"></tbody>
-      </table>
+    <div class="card mt-16">
+      <div class="card-title">MATRIZ DE VENCIMIENTOS POR COMPONENTE</div>
+      <div class="matrix-info-bar mt-12">
+        <span id="replMatrixCounter">0 Autotanque(s) encontrado(s)</span>
+      </div>
+      <p class="text-muted mt-12">Las celdas en rojo indican componentes vencidos.</p>
+      <div class="matrix-legend matrix-legend-inline">
+        <button type="button" class="matrix-legend-item matrix-legend-btn" data-matrix-filter="expired" onclick="setReplMatrixColorFilter('expired')"><span class="matrix-dot matrix-dot-expired"></span>Vencido</button>
+        <button type="button" class="matrix-legend-item matrix-legend-btn" data-matrix-filter="warning" onclick="setReplMatrixColorFilter('warning')"><span class="matrix-dot matrix-dot-warning"></span>Por vencer</button>
+        <button type="button" class="matrix-legend-item matrix-legend-btn" data-matrix-filter="ok" onclick="setReplMatrixColorFilter('ok')"><span class="matrix-dot matrix-dot-ok"></span>Vigente</button>
+      </div>
+      <div class="matrix-scroll-top" id="matrixReplTopScroll" aria-label="Desplazamiento horizontal superior">
+        <div id="matrixReplTopScrollInner"></div>
+      </div>
+      <div class="table-wrap matrix-wrap" id="replMatrixWrap">
+        <table id="tableReplMatrix">
+          <thead id="tableReplMatrixHead"></thead>
+          <tbody id="tableReplMatrixBody"></tbody>
+        </table>
+      </div>
     </div>
   </div>
 
@@ -336,6 +460,51 @@
             <option value="GALERAS">GALERAS</option>
             <option value="PEDRO ESCOBEDO">PEDRO ESCOBEDO</option>
           </select>
+        </div>
+      </div>
+      <div class="section-sep"></div>
+      <div class="card-title" style="margin-bottom:10px">DATOS OPERATIVOS ADICIONALES</div>
+      <div class="grid-2">
+        <div class="flex-gap" style="align-items:flex-end">
+          <label style="display:flex;align-items:center;gap:8px;margin:0">
+            <input type="checkbox" id="atActivo" style="width:auto"> ACTIVO
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;margin:0">
+            <input type="checkbox" id="atEnServicio" style="width:auto"> ¿EN SERVICIO?
+          </label>
+        </div>
+      </div>
+      <div class="grid-3 mt-12">
+        <div>
+          <label>MARCA</label>
+          <input type="text" id="atMarcaUnidad" placeholder="Ej. ISUZU">
+        </div>
+        <div>
+          <label>MODELO</label>
+          <input type="text" id="atModeloUnidad" placeholder="Ej. ELF-500">
+        </div>
+      </div>
+      <div class="grid-2 mt-12">
+        <div>
+          <label>FECHA DICTAMEN NOM-007</label>
+          <div class="grid-2" style="gap:8px">
+            <input type="number" id="atDictamenMes" min="1" max="12" placeholder="Mes (1-12)">
+            <input type="number" id="atDictamenAnio" min="2000" max="2100" placeholder="Año">
+          </div>
+        </div>
+      </div>
+      <div class="grid-3 mt-12">
+        <div>
+          <label>¿REGISTRO ANTE SENER?</label>
+          <select id="atRegistroSener">
+            <option value="">— Seleccionar —</option>
+            <option value="SI">SI</option>
+            <option value="NO">NO</option>
+          </select>
+        </div>
+        <div>
+          <label>NO. REG. TAG SENER</label>
+          <input type="text" id="atNoRegTagSener" placeholder="Ej. A-10439-0713">
         </div>
       </div>
       <div style="margin-top:14px">
@@ -439,6 +608,68 @@
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal('modalRecordEdit')">CANCELAR</button>
       <button class="btn btn-primary" onclick="saveRecordEdit()">GUARDAR CAMBIOS</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── MODAL: VER ESTACIÓN ─────────── -->
+<div class="modal-overlay" id="modalEstacionView">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>DETALLE DE ESTACIÓN</h3>
+      <button class="modal-close" onclick="closeModal('modalEstacionView')">×</button>
+    </div>
+    <div class="modal-body" id="modalEstacionViewBody"></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modalEstacionView')">CERRAR</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── MODAL: EDITAR ESTACIÓN ─────────── -->
+<div class="modal-overlay" id="modalEstacionEdit">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>EDITAR ESTACIÓN</h3>
+      <button class="modal-close" onclick="closeModal('modalEstacionEdit')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="grid-2" style="margin-bottom:12px">
+        <div>
+          <label>PLANTA *</label>
+          <input type="text" id="editEstPlanta">
+        </div>
+        <div>
+          <label>ESTACIÓN DE CARBURACIÓN *</label>
+          <input type="text" id="editEstNombre">
+        </div>
+      </div>
+      <div style="margin-bottom:12px">
+        <label>NÚMERO DE BOMBA *</label>
+        <input type="text" id="editEstBomba">
+      </div>
+      <div>
+        <label>COMPONENTES (uno por línea)</label>
+        <textarea id="editEstComponentes" rows="6" placeholder="Ej. Válvula check lock"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modalEstacionEdit')">CANCELAR</button>
+      <button class="btn btn-primary" onclick="saveEstacionEdit()">GUARDAR CAMBIOS</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── MODAL: DASHBOARD DRILL-DOWN ─────────── -->
+<div class="modal-overlay" id="modalDashboardDrill">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="modalDashboardDrillTitle">DETALLE DASHBOARD</h3>
+      <button class="modal-close" onclick="closeModal('modalDashboardDrill')">×</button>
+    </div>
+    <div class="modal-body" id="modalDashboardDrillBody"></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modalDashboardDrill')">CERRAR</button>
     </div>
   </div>
 </div>
