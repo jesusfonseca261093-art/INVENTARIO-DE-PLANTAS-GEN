@@ -100,6 +100,9 @@ const ESTACIONES_CARBURACION = [
 ];
 const STATIONS_STORAGE_KEY = 'at_estaciones';
 const STATION_RECORDS_STORAGE_KEY = 'at_station_records';
+const CHANGE_HISTORY_STORAGE_KEY = 'at_change_history';
+const CHANGE_HISTORY_PENDING_STORAGE_KEY = 'at_change_history_pending';
+const CHANGE_HISTORY_LIMIT = 5000;
 
 // ── STATE ─────────────────────────────────────────────────────────────
 let autotanques = JSON.parse(localStorage.getItem('at_units') || '[]');
@@ -124,6 +127,10 @@ let authIdleTimer = null;
 let authActivityBound = false;
 let authLogoutInProgress = false;
 let replMatrixColorFilter = '';
+let changeHistory = loadChangeHistory();
+let changeAuditReady = false;
+let lastAuditSnapshot = null;
+let activeAuditUser = 'Sistema';
 
 const EXPEDIENTE_CATEGORIES = {
   seguro: 'Seguro de la unidad',
@@ -160,6 +167,7 @@ const SUPABASE_TABLE_UNITS = String(APP_SUPABASE_CONFIG.tableUnits || 'at_units'
 const SUPABASE_TABLE_RECORDS = String(APP_SUPABASE_CONFIG.tableRecords || 'at_records').trim() || 'at_records';
 const SUPABASE_TABLE_PART_IMAGES = String(APP_SUPABASE_CONFIG.tablePartImages || 'at_part_images').trim() || 'at_part_images';
 const SUPABASE_TABLE_STATION_RECORDS = String(APP_SUPABASE_CONFIG.tableStationRecords || 'at_station_records').trim() || 'at_station_records';
+const SUPABASE_TABLE_CHANGE_HISTORY = String(APP_SUPABASE_CONFIG.tableChangeHistory || 'at_change_history').trim() || 'at_change_history';
 const SUPABASE_BUCKET_EXPEDIENTE = String(APP_SUPABASE_CONFIG.bucketExpediente || 'at_expediente').trim() || 'at_expediente';
 const SUPABASE_ENABLED = Boolean(SUPABASE_URL && SUPABASE_ANON && window.supabase?.createClient);
 const SUPABASE_CONFIG_SOURCE = HAS_FILE_SUPABASE_CONFIG
@@ -168,6 +176,9 @@ const SUPABASE_CONFIG_SOURCE = HAS_FILE_SUPABASE_CONFIG
 const supabaseClient = SUPABASE_ENABLED ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON) : null;
 let runtimeUseSupabase = SUPABASE_ENABLED;
 let runtimeUseSupabaseStationRecords = SUPABASE_ENABLED;
+let runtimeUseSupabaseChangeHistory = SUPABASE_ENABLED;
+let changeHistorySyncInFlight = false;
+let pendingChangeHistoryRemote = loadPendingChangeHistoryRemote();
 const SUPABASE_SETUP_SQL = `
 create table if not exists public.at_units (
   id text primary key,
@@ -224,12 +235,22 @@ create table if not exists public.at_station_records (
   created_at timestamptz not null default now()
 );
 
+create table if not exists public.at_change_history (
+  id text primary key,
+  event_at timestamptz not null,
+  action text,
+  movement text not null,
+  user_name text,
+  created_at timestamptz not null default now()
+);
+
 alter table public.at_units add column if not exists planta_actual text;
 
 alter table public.at_units enable row level security;
 alter table public.at_records enable row level security;
 alter table public.at_part_images enable row level security;
 alter table public.at_station_records enable row level security;
+alter table public.at_change_history enable row level security;
 
 drop policy if exists "at_units_all" on public.at_units;
 create policy "at_units_all" on public.at_units
@@ -255,6 +276,12 @@ for all
 using (auth.role() = 'authenticated')
 with check (auth.role() = 'authenticated');
 
+drop policy if exists "at_change_history_all" on public.at_change_history;
+create policy "at_change_history_all" on public.at_change_history
+for all
+using (auth.role() = 'authenticated')
+with check (auth.role() = 'authenticated');
+
 insert into storage.buckets (id, name, public)
 values ('${SUPABASE_BUCKET_EXPEDIENTE}', '${SUPABASE_BUCKET_EXPEDIENTE}', false)
 on conflict (id) do nothing;
@@ -269,13 +296,24 @@ with check (bucket_id = '${SUPABASE_BUCKET_EXPEDIENTE}' and auth.role() = 'authe
 
 autotanques = normalizeAutotanques(autotanques);
 partImages = normalizePartImages(partImages);
+lastAuditSnapshot = buildAuditSnapshot();
 
 function save() {
+  const nextSnapshot = buildAuditSnapshot();
+  const pendingHistoryEntries = changeAuditReady
+    ? buildChangeHistoryEntries(lastAuditSnapshot, nextSnapshot)
+    : [];
+
   if (runtimeUseSupabase) {
     // Siempre mantenemos cache local de imagenes por seguridad, aun en modo Supabase.
     try { localStorage.setItem('at_part_images', JSON.stringify(partImages)); } catch {}
     try { localStorage.setItem(STATIONS_STORAGE_KEY, JSON.stringify(estaciones)); } catch {}
     try { localStorage.setItem(STATION_RECORDS_STORAGE_KEY, JSON.stringify(stationRecords)); } catch {}
+    if (pendingHistoryEntries.length) {
+      appendChangeHistoryEntries(pendingHistoryEntries);
+      renderChangeHistory();
+    }
+    lastAuditSnapshot = nextSnapshot;
     return true;
   }
   try {
@@ -284,11 +322,397 @@ function save() {
     localStorage.setItem('at_part_images', JSON.stringify(partImages));
     localStorage.setItem(STATIONS_STORAGE_KEY, JSON.stringify(estaciones));
     localStorage.setItem(STATION_RECORDS_STORAGE_KEY, JSON.stringify(stationRecords));
+    if (pendingHistoryEntries.length) {
+      appendChangeHistoryEntries(pendingHistoryEntries);
+      renderChangeHistory();
+    }
+    lastAuditSnapshot = nextSnapshot;
     return true;
   } catch (err) {
     alert('No se pudo guardar en almacenamiento local. Reduce tamano de archivos del expediente o imagenes e intenta de nuevo.');
     return false;
   }
+}
+
+function loadChangeHistory() {
+  const raw = localStorage.getItem(CHANGE_HISTORY_STORAGE_KEY);
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map(item => ({
+        id: String(item?.id || genId()),
+        timestamp: String(item?.timestamp || ''),
+        action: String(item?.action || ''),
+        movement: String(item?.movement || ''),
+        user: String(item?.user || 'Sistema')
+      }))
+      .filter(item => item.timestamp && item.movement);
+  } catch {
+    return [];
+  }
+}
+
+function persistChangeHistory() {
+  try {
+    localStorage.setItem(CHANGE_HISTORY_STORAGE_KEY, JSON.stringify(changeHistory));
+  } catch {}
+}
+
+function normalizeChangeHistoryEntries(entries) {
+  return (Array.isArray(entries) ? entries : [])
+    .map(item => ({
+      id: String(item?.id || genId()),
+      timestamp: String(item?.timestamp || new Date().toISOString()),
+      action: String(item?.action || '').trim(),
+      movement: String(item?.movement || '').trim(),
+      user: String(item?.user || 'Sistema').trim() || 'Sistema'
+    }))
+    .filter(item => item.timestamp && item.movement);
+}
+
+function sortChangeHistoryDesc(list) {
+  return [...(Array.isArray(list) ? list : [])].sort((a, b) =>
+    String(b?.timestamp || '').localeCompare(String(a?.timestamp || ''))
+  );
+}
+
+function mergeChangeHistoryLists(...lists) {
+  const map = new Map();
+  lists.flat().forEach(item => {
+    const id = String(item?.id || '').trim();
+    if (!id) return;
+    if (!map.has(id)) map.set(id, item);
+  });
+  return sortChangeHistoryDesc(Array.from(map.values()));
+}
+
+function loadPendingChangeHistoryRemote() {
+  const raw = localStorage.getItem(CHANGE_HISTORY_PENDING_STORAGE_KEY);
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return normalizeChangeHistoryEntries(parsed);
+  } catch {
+    return [];
+  }
+}
+
+function persistPendingChangeHistoryRemote() {
+  try {
+    localStorage.setItem(CHANGE_HISTORY_PENDING_STORAGE_KEY, JSON.stringify(pendingChangeHistoryRemote));
+  } catch {}
+}
+
+function mapChangeHistoryToDb(entry) {
+  return {
+    id: entry.id,
+    event_at: entry.timestamp || new Date().toISOString(),
+    action: entry.action || null,
+    movement: entry.movement || null,
+    user_name: entry.user || null
+  };
+}
+
+function mapChangeHistoryFromDb(row) {
+  return {
+    id: String(row?.id || genId()),
+    timestamp: String(row?.event_at || row?.created_at || ''),
+    action: String(row?.action || ''),
+    movement: String(row?.movement || ''),
+    user: String(row?.user_name || 'Sistema')
+  };
+}
+
+function queueChangeHistoryForRemote(entries) {
+  const normalized = normalizeChangeHistoryEntries(entries);
+  if (!normalized.length) return;
+  pendingChangeHistoryRemote = mergeChangeHistoryLists(pendingChangeHistoryRemote, normalized);
+  if (pendingChangeHistoryRemote.length > CHANGE_HISTORY_LIMIT) {
+    pendingChangeHistoryRemote = pendingChangeHistoryRemote.slice(0, CHANGE_HISTORY_LIMIT);
+  }
+  persistPendingChangeHistoryRemote();
+  void flushPendingChangeHistoryRemote();
+}
+
+async function flushPendingChangeHistoryRemote() {
+  if (!runtimeUseSupabase || !runtimeUseSupabaseChangeHistory || !supabaseClient) return false;
+  if (changeHistorySyncInFlight) return false;
+  if (!pendingChangeHistoryRemote.length) return true;
+
+  changeHistorySyncInFlight = true;
+  try {
+    while (pendingChangeHistoryRemote.length) {
+      const batch = pendingChangeHistoryRemote.slice(0, 200);
+      const { error } = await supabaseClient
+        .from(SUPABASE_TABLE_CHANGE_HISTORY)
+        .upsert(batch.map(mapChangeHistoryToDb), { onConflict: 'id' });
+      if (error) {
+        if (isMissingChangeHistoryTableError(error)) {
+          runtimeUseSupabaseChangeHistory = false;
+          updateStorageModeLabel(`tabla ${SUPABASE_TABLE_CHANGE_HISTORY} no existe; historial solo local`);
+        } else {
+          console.warn('No se pudo sincronizar historial con Supabase:', error);
+        }
+        persistPendingChangeHistoryRemote();
+        return false;
+      }
+      pendingChangeHistoryRemote = pendingChangeHistoryRemote.slice(batch.length);
+      persistPendingChangeHistoryRemote();
+    }
+    return true;
+  } finally {
+    changeHistorySyncInFlight = false;
+  }
+}
+
+function getAuditUserDisplayName() {
+  const value = String(activeAuditUser || '').trim();
+  return value || 'Sistema';
+}
+
+function buildAuditSnapshot() {
+  const units = {};
+  const recordsById = {};
+  const stationsById = {};
+  const stationRecordsById = {};
+  const partImagesByKey = {};
+  const unitLabelById = {};
+  const stationLabelById = {};
+
+  (Array.isArray(autotanques) ? autotanques : []).forEach(at => {
+    const id = String(at?.id || '').trim();
+    if (!id) return;
+    const econ = String(at?.econ || '').trim();
+    const placa = String(at?.placa || '').trim();
+    const label = econ ? `${econ}${placa ? ` (${placa})` : ''}` : id;
+    unitLabelById[id] = label;
+    units[id] = {
+      label,
+      data: {
+        econ,
+        placa,
+        plantaActual: String(at?.plantaActual || '').trim(),
+        serieUnidad: String(at?.serieUnidad || '').trim(),
+        serieTanque: String(at?.serieTanque || '').trim(),
+        capacidad: String(at?.capacidad || '').trim(),
+        anio: String(at?.anio || '').trim(),
+        notas: String(at?.notas || '').trim(),
+        activo: Boolean(at?.activo),
+        enServicio: Boolean(at?.enServicio),
+        marcaUnidad: String(at?.marcaUnidad || '').trim(),
+        modeloUnidad: String(at?.modeloUnidad || '').trim(),
+        dictamenNomMes: String(at?.dictamenNomMes || '').trim(),
+        dictamenNomAnio: String(at?.dictamenNomAnio || '').trim(),
+        nom013Mes: String(at?.nom013Mes || '').trim(),
+        nom013Anio: String(at?.nom013Anio || '').trim(),
+        nom007SeshMes: String(at?.nom007SeshMes || '').trim(),
+        nom007SeshAnio: String(at?.nom007SeshAnio || '').trim(),
+        registroSener: String(at?.registroSener || '').trim(),
+        noRegTagSener: String(at?.noRegTagSener || '').trim(),
+        expedienteCount: Array.isArray(at?.expediente) ? at.expediente.length : 0
+      }
+    };
+  });
+
+  (Array.isArray(estaciones) ? estaciones : []).forEach(st => {
+    const id = String(st?.id || '').trim();
+    if (!id) return;
+    const planta = String(st?.planta || '').trim();
+    const estacion = String(st?.estacion || '').trim();
+    const bomba = String(st?.bomba || '').trim();
+    const label = [planta, estacion, bomba].filter(Boolean).join(' / ') || id;
+    stationLabelById[id] = label;
+    stationsById[id] = {
+      label,
+      data: {
+        planta,
+        estacion,
+        bomba,
+        componentesCount: Array.isArray(st?.componentes) ? st.componentes.length : 0,
+        expedienteCount: Array.isArray(st?.expediente) ? st.expediente.length : 0
+      }
+    };
+  });
+
+  (Array.isArray(records) ? records : []).forEach(rec => {
+    const id = String(rec?.id || '').trim();
+    if (!id) return;
+    const atId = String(rec?.atId || '').trim();
+    const atLabel = unitLabelById[atId] || atId || 'Sin unidad';
+    const partLabel = String(rec?.partDesc || rec?.partNo || '').trim() || 'Componente';
+    recordsById[id] = {
+      label: `${partLabel} - ${atLabel}`,
+      data: {
+        atId,
+        partNo: String(rec?.partNo || '').trim(),
+        partPn: String(rec?.partPn || '').trim(),
+        partDesc: String(rec?.partDesc || '').trim(),
+        partBrand: String(rec?.partBrand || '').trim(),
+        fabDate: String(rec?.fabDate || '').trim(),
+        instDate: String(rec?.instDate || '').trim(),
+        replDate: String(rec?.replDate || '').trim(),
+        serial: String(rec?.serial || '').trim(),
+        brand: String(rec?.brand || '').trim(),
+        notes: String(rec?.notes || '').trim()
+      }
+    };
+  });
+
+  (Array.isArray(stationRecords) ? stationRecords : []).forEach(rec => {
+    const id = String(rec?.id || '').trim();
+    if (!id) return;
+    const stationId = String(rec?.stationId || '').trim();
+    const stationLabel = stationLabelById[stationId] || stationId || 'Sin estación';
+    const partLabel = String(rec?.partDesc || rec?.partNo || '').trim() || 'Componente';
+    stationRecordsById[id] = {
+      label: `${partLabel} - ${stationLabel}`,
+      data: {
+        stationId,
+        partNo: String(rec?.partNo || '').trim(),
+        partPn: String(rec?.partPn || '').trim(),
+        partDesc: String(rec?.partDesc || '').trim(),
+        partBrand: String(rec?.partBrand || '').trim(),
+        fabDate: String(rec?.fabDate || '').trim(),
+        instDate: String(rec?.instDate || '').trim(),
+        replDate: String(rec?.replDate || '').trim(),
+        serial: String(rec?.serial || '').trim(),
+        brand: String(rec?.brand || '').trim(),
+        notes: String(rec?.notes || '').trim()
+      }
+    };
+  });
+
+  Object.entries(partImages || {}).forEach(([partNo, img]) => {
+    const key = String(partNo || '').trim();
+    if (!key) return;
+    const safeImg = img && typeof img === 'object' ? img : {};
+    partImagesByKey[key] = {
+      label: `Imagen de pieza ${key}`,
+      data: {
+        fileName: String(safeImg.fileName || '').trim(),
+        mimeType: String(safeImg.mimeType || '').trim(),
+        sizeBytes: Number(safeImg.sizeBytes || 0) || 0,
+        updatedAt: String(safeImg.updatedAt || '').trim(),
+        dataUrlLength: String(safeImg.dataUrl || '').length
+      }
+    };
+  });
+
+  return {
+    units,
+    records: recordsById,
+    stations: stationsById,
+    stationRecords: stationRecordsById,
+    partImages: partImagesByKey
+  };
+}
+
+function stableStringify(value) {
+  if (value === null || value === undefined) return String(value);
+  if (typeof value !== 'object') return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(stableStringify).join(',')}]`;
+  const keys = Object.keys(value).sort();
+  return `{${keys.map(k => `${JSON.stringify(k)}:${stableStringify(value[k])}`).join(',')}}`;
+}
+
+function getChangedFieldList(prevData, nextData) {
+  const keys = Array.from(new Set([
+    ...Object.keys(prevData || {}),
+    ...Object.keys(nextData || {})
+  ])).sort(compareTextNatural);
+  return keys.filter(key => stableStringify(prevData?.[key]) !== stableStringify(nextData?.[key]));
+}
+
+function diffSnapshotCollection(previousCollection, nextCollection, entityName) {
+  const previous = previousCollection || {};
+  const next = nextCollection || {};
+  const prevKeys = Object.keys(previous);
+  const nextKeys = Object.keys(next);
+  const allKeys = Array.from(new Set([...prevKeys, ...nextKeys])).sort(compareTextNatural);
+  const rows = [];
+
+  allKeys.forEach(key => {
+    const prevItem = previous[key];
+    const nextItem = next[key];
+    if (!prevItem && nextItem) {
+      rows.push({
+        id: genId(),
+        action: 'ALTA',
+        movement: `ALTA: ${entityName} "${nextItem.label}".`
+      });
+      return;
+    }
+    if (prevItem && !nextItem) {
+      rows.push({
+        id: genId(),
+        action: 'ELIMINACIÓN',
+        movement: `ELIMINACIÓN: ${entityName} "${prevItem.label}".`
+      });
+      return;
+    }
+    if (!prevItem || !nextItem) return;
+
+    const prevHash = stableStringify(prevItem.data);
+    const nextHash = stableStringify(nextItem.data);
+    if (prevHash === nextHash) return;
+
+    const changedFields = getChangedFieldList(prevItem.data, nextItem.data);
+    const changedText = changedFields.length ? ` Campos: ${changedFields.join(', ')}.` : '';
+    rows.push({
+      id: genId(),
+      action: 'MODIFICACIÓN',
+      movement: `MODIFICACIÓN: ${entityName} "${nextItem.label}".${changedText}`
+    });
+  });
+
+  return rows;
+}
+
+function buildChangeHistoryEntries(previousSnapshot, nextSnapshot) {
+  if (!previousSnapshot || !nextSnapshot) return [];
+  const nowIso = new Date().toISOString();
+  const user = getAuditUserDisplayName();
+  const out = [];
+  const append = entries => entries.forEach(entry => out.push({ ...entry, timestamp: nowIso, user }));
+
+  append(diffSnapshotCollection(previousSnapshot.units, nextSnapshot.units, 'Autotanque'));
+  append(diffSnapshotCollection(previousSnapshot.records, nextSnapshot.records, 'Registro de componente'));
+  append(diffSnapshotCollection(previousSnapshot.stations, nextSnapshot.stations, 'Estación'));
+  append(diffSnapshotCollection(previousSnapshot.stationRecords, nextSnapshot.stationRecords, 'Registro de estación'));
+  append(diffSnapshotCollection(previousSnapshot.partImages, nextSnapshot.partImages, 'Imagen de pieza'));
+  return out;
+}
+
+function appendChangeHistoryEntries(entries) {
+  const normalized = normalizeChangeHistoryEntries(entries);
+  if (!normalized.length) return;
+  changeHistory = mergeChangeHistoryLists(normalized, changeHistory).slice(0, CHANGE_HISTORY_LIMIT);
+  persistChangeHistory();
+  if (runtimeUseSupabase) queueChangeHistoryForRemote(normalized);
+}
+
+function renderChangeHistory() {
+  const tbody = document.getElementById('changeHistoryBody');
+  const summary = document.getElementById('changeHistorySummary');
+  if (!tbody || !summary) return;
+
+  if (!changeHistory.length) {
+    summary.textContent = 'Sin cambios registrados.';
+    tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--muted);padding:20px">Sin cambios registrados.</td></tr>';
+    return;
+  }
+
+  const visibleRows = changeHistory.slice(0, 300);
+  summary.textContent = `Total de movimientos: ${changeHistory.length}. Mostrando los últimos ${visibleRows.length}.`;
+  tbody.innerHTML = visibleRows.map(item => `
+    <tr>
+      <td>${escapeHtml(formatDateTime(item.timestamp))}</td>
+      <td>${escapeHtml(item.movement)}</td>
+      <td>${escapeHtml(item.user || 'Sistema')}</td>
+    </tr>
+  `).join('');
 }
 
 // ── UTILS ─────────────────────────────────────────────────────────────
@@ -617,6 +1041,48 @@ function daysUntil(dateStr) {
   return Math.round((d - now) / 86400000);
 }
 
+function getNormExpeditionDate(unit, normKey = 'legacy') {
+  let monthRaw = '';
+  let yearRaw = '';
+  if (normKey === 'nom013') {
+    monthRaw = String(unit?.nom013Mes || '').trim();
+    yearRaw = String(unit?.nom013Anio || '').trim();
+  } else if (normKey === 'nom007sesh') {
+    monthRaw = String(unit?.nom007SeshMes || '').trim();
+    yearRaw = String(unit?.nom007SeshAnio || '').trim();
+  } else {
+    monthRaw = String(unit?.dictamenNomMes || '').trim();
+    yearRaw = String(unit?.dictamenNomAnio || '').trim();
+  }
+  // Compatibilidad: si no hay campos nuevos, usar fecha legacy.
+  if ((!monthRaw || !yearRaw) && normKey !== 'legacy') {
+    monthRaw = String(unit?.dictamenNomMes || '').trim();
+    yearRaw = String(unit?.dictamenNomAnio || '').trim();
+  }
+  const month = Number.parseInt(monthRaw, 10);
+  const year = Number.parseInt(yearRaw, 10);
+  if (!Number.isInteger(month) || !Number.isInteger(year)) return '';
+  if (month < 1 || month > 12) return '';
+  if (year < 1900 || year > 2100) return '';
+  return `${year}-${String(month).padStart(2, '0')}-01`;
+}
+
+function getNormExpiryDate(unit, yearsToAdd, normKey = 'legacy') {
+  const expeditionDate = getNormExpeditionDate(unit, normKey);
+  if (!expeditionDate) return '';
+  return addYears(expeditionDate, yearsToAdd);
+}
+
+function buildMatrixDateCell(dateValue, extraClass = '') {
+  const cls = extraClass ? ` ${extraClass}` : '';
+  if (!dateValue) return `<td class="matrix-empty${cls}">—</td>`;
+  const d = daysUntil(dateValue);
+  const txt = formatDate(dateValue);
+  if (d !== null && d < 0) return `<td class="matrix-expired${cls}">${txt}</td>`;
+  if (d !== null && d <= MATRIX_WARNING_DAYS) return `<td class="matrix-critical${cls}">${txt}</td>`;
+  return `<td class="matrix-ok${cls}">${txt}</td>`;
+}
+
 function formatDate(d) {
   if (!d) return '—';
   const [y,m,dia] = d.split('-');
@@ -667,6 +1133,10 @@ function buildUnitMetaPayload(at) {
     modeloUnidad: String(at?.modeloUnidad || '').trim(),
     dictamenNomMes: String(at?.dictamenNomMes || '').trim(),
     dictamenNomAnio: String(at?.dictamenNomAnio || '').trim(),
+    nom013Mes: String(at?.nom013Mes || '').trim(),
+    nom013Anio: String(at?.nom013Anio || '').trim(),
+    nom007SeshMes: String(at?.nom007SeshMes || '').trim(),
+    nom007SeshAnio: String(at?.nom007SeshAnio || '').trim(),
     registroSener: String(at?.registroSener || '').trim(),
     noRegTagSener: String(at?.noRegTagSener || '').trim()
   };
@@ -691,6 +1161,10 @@ function normalizeAutotanques(list) {
       modeloUnidad: String(at?.modeloUnidad || meta?.modeloUnidad || '').trim(),
       dictamenNomMes: String(at?.dictamenNomMes || meta?.dictamenNomMes || '').trim(),
       dictamenNomAnio: String(at?.dictamenNomAnio || meta?.dictamenNomAnio || '').trim(),
+      nom013Mes: String(at?.nom013Mes || meta?.nom013Mes || '').trim(),
+      nom013Anio: String(at?.nom013Anio || meta?.nom013Anio || '').trim(),
+      nom007SeshMes: String(at?.nom007SeshMes || meta?.nom007SeshMes || '').trim(),
+      nom007SeshAnio: String(at?.nom007SeshAnio || meta?.nom007SeshAnio || '').trim(),
       registroSener: String(at?.registroSener || meta?.registroSener || '').trim(),
       noRegTagSener: String(at?.noRegTagSener || meta?.noRegTagSener || '').trim(),
       notas: parsed.notes,
@@ -927,6 +1401,10 @@ function mapUnitFromDb(row) {
     modeloUnidad: String(meta.modeloUnidad || '').trim(),
     dictamenNomMes: String(meta.dictamenNomMes || '').trim(),
     dictamenNomAnio: String(meta.dictamenNomAnio || '').trim(),
+    nom013Mes: String(meta.nom013Mes || '').trim(),
+    nom013Anio: String(meta.nom013Anio || '').trim(),
+    nom007SeshMes: String(meta.nom007SeshMes || '').trim(),
+    nom007SeshAnio: String(meta.nom007SeshAnio || '').trim(),
     registroSener: String(meta.registroSener || '').trim(),
     noRegTagSener: String(meta.noRegTagSener || '').trim(),
     notas: parsed.notes,
@@ -1100,6 +1578,12 @@ function isMissingStationRecordsTableError(error) {
   return (detail.includes(tableName) || detail.includes('at_station_records')) && (detail.includes('does not exist') || detail.includes('schema cache'));
 }
 
+function isMissingChangeHistoryTableError(error) {
+  const detail = `${error?.message || ''} ${error?.details || ''} ${error?.hint || ''}`.toLowerCase();
+  const tableName = String(SUPABASE_TABLE_CHANGE_HISTORY || 'at_change_history').toLowerCase();
+  return (detail.includes(tableName) || detail.includes('at_change_history')) && (detail.includes('does not exist') || detail.includes('schema cache'));
+}
+
 function isStorageBucketError(error) {
   const detail = `${error?.message || ''} ${error?.details || ''} ${error?.hint || ''}`.toLowerCase();
   const bucket = String(SUPABASE_BUCKET_EXPEDIENTE || 'at_expediente').toLowerCase();
@@ -1135,6 +1619,12 @@ function showSupabaseError(context, error) {
       'Ejecuta el SQL de configuracion para crearla y recarga la pagina.'
     );
   }
+  if (isMissingChangeHistoryTableError(error)) {
+    return alert(
+      `Error en Supabase: falta la tabla ${SUPABASE_TABLE_CHANGE_HISTORY}.\n\n` +
+      'Ejecuta el SQL de configuracion para crearla y recarga la pagina.'
+    );
+  }
   if (isStorageBucketError(error)) {
     return alert(
       `Error en Supabase Storage (${SUPABASE_BUCKET_EXPEDIENTE}).\n\n` +
@@ -1149,6 +1639,7 @@ async function loadFromSupabase() {
   if (!runtimeUseSupabase) return true;
   const localPartImagesCache = normalizePartImages(JSON.parse(localStorage.getItem('at_part_images') || '{}'));
   const localStationRecordsCache = normalizeStationRecords(JSON.parse(localStorage.getItem(STATION_RECORDS_STORAGE_KEY) || '[]'));
+  const localChangeHistoryCache = loadChangeHistory();
   const { data: unitRows, error: unitsError } = await supabaseClient
     .from(SUPABASE_TABLE_UNITS)
     .select('*')
@@ -1199,6 +1690,34 @@ async function loadFromSupabase() {
     stationRecords = localStationRecordsCache;
   }
 
+  let changeHistoryRows = [];
+  if (runtimeUseSupabaseChangeHistory) {
+    const { data, error } = await supabaseClient
+      .from(SUPABASE_TABLE_CHANGE_HISTORY)
+      .select('*')
+      .order('event_at', { ascending: false })
+      .limit(CHANGE_HISTORY_LIMIT);
+    if (error) {
+      if (isMissingChangeHistoryTableError(error)) {
+        runtimeUseSupabaseChangeHistory = false;
+        updateStorageModeLabel(`tabla ${SUPABASE_TABLE_CHANGE_HISTORY} no existe; historial solo local`);
+      } else {
+        runtimeUseSupabaseChangeHistory = false;
+        console.warn('No se pudo cargar historial desde Supabase:', error);
+      }
+      changeHistory = localChangeHistoryCache;
+    } else {
+      changeHistoryRows = data || [];
+      const remoteChangeHistory = normalizeChangeHistoryEntries(changeHistoryRows.map(mapChangeHistoryFromDb));
+      changeHistory = mergeChangeHistoryLists(remoteChangeHistory, localChangeHistoryCache).slice(0, CHANGE_HISTORY_LIMIT);
+      persistChangeHistory();
+      const missingRemote = changeHistory.filter(item => !remoteChangeHistory.some(r => r.id === item.id));
+      if (missingRemote.length) queueChangeHistoryForRemote(missingRemote);
+    }
+  } else {
+    changeHistory = localChangeHistoryCache;
+  }
+
   autotanques = normalizeAutotanques((unitRows || []).map(mapUnitFromDb));
   records = (recordRows || []).map(mapRecordFromDb);
   if (!partImagesError) {
@@ -1224,6 +1743,9 @@ async function loadFromSupabase() {
   }
   if (!runtimeUseSupabaseStationRecords) {
     stationRecords = localStationRecordsCache;
+  }
+  if (runtimeUseSupabaseChangeHistory) {
+    void flushPendingChangeHistoryRemote();
   }
   save();
   return true;
@@ -1464,7 +1986,7 @@ async function deleteStationRecordsByStationRemote(stationId) {
   return true;
 }
 
-async function replaceRemoteData(allUnits, allRecords, allPartImages = null, allStationRecords = null) {
+async function replaceRemoteData(allUnits, allRecords, allPartImages = null, allStationRecords = null, allChangeHistory = null) {
   if (!runtimeUseSupabase) return true;
 
   const { error: delRecordsErr } = await supabaseClient
@@ -1507,6 +2029,22 @@ async function replaceRemoteData(allUnits, allRecords, allPartImages = null, all
         return false;
       }
       runtimeUseSupabaseStationRecords = false;
+    }
+  }
+
+  if (allChangeHistory !== null && runtimeUseSupabaseChangeHistory) {
+    const { error } = await supabaseClient
+      .from(SUPABASE_TABLE_CHANGE_HISTORY)
+      .delete()
+      .neq('id', '');
+    if (error) {
+      if (isMissingChangeHistoryTableError(error)) {
+        runtimeUseSupabaseChangeHistory = false;
+        updateStorageModeLabel(`tabla ${SUPABASE_TABLE_CHANGE_HISTORY} no existe; historial solo local`);
+      } else {
+        console.warn('No se pudo limpiar historial remoto:', error);
+      }
+      return false;
     }
   }
 
@@ -1556,6 +2094,22 @@ async function replaceRemoteData(allUnits, allRecords, allPartImages = null, all
     }
   }
 
+  if (allChangeHistory !== null && runtimeUseSupabaseChangeHistory) {
+    const historyRows = normalizeChangeHistoryEntries(allChangeHistory).map(mapChangeHistoryToDb);
+    for (const chunk of chunkArray(historyRows)) {
+      const { error } = await supabaseClient.from(SUPABASE_TABLE_CHANGE_HISTORY).insert(chunk);
+      if (error) {
+        if (isMissingChangeHistoryTableError(error)) {
+          runtimeUseSupabaseChangeHistory = false;
+          updateStorageModeLabel(`tabla ${SUPABASE_TABLE_CHANGE_HISTORY} no existe; historial solo local`);
+          break;
+        }
+        console.warn('No se pudo importar historial remoto:', error);
+        return false;
+      }
+    }
+  }
+
   return true;
 }
 
@@ -1572,6 +2126,7 @@ function switchTab(id) {
   if (id === 'estaciones')  renderEstaciones();
   if (id === 'registro')    renderPartList(); populateATSelect(); populateStationSelectForRegistro(); toggleRegistroTarget(); refreshSelectedPartImageUI();
   if (id === 'reemplazos')  renderReemplazos();
+  if (id === 'exportar')    renderChangeHistory();
 }
 
 function getRegistroTargetType() {
@@ -2046,10 +2601,11 @@ async function saveComponentRecord() {
   if (!selectedPart) return alert('Selecciona un componente de la lista.');
   const targetType = document.getElementById('formTargetType')?.value || 'autotanque';
   const notesText = document.getElementById('formNotes').value || '';
+  const serialText = document.getElementById('formSerial').value || '';
   const fabRawCode = document.getElementById('formFabDate').value || '';
   const parsedFab = parseFabCode(fabRawCode);
-  if (!parsedFab && !notesText.trim()) {
-    return alert('Ingresa un código/fecha válida o agrega una nota cuando no se cuenta con el componente.');
+  if (!parsedFab && !notesText.trim() && !serialText.trim()) {
+    return alert('Ingresa un código/fecha válida, un número de serie o agrega una nota cuando no se cuenta con el componente.');
   }
   const fabDate = parsedFab ? parsedFab.iso : '';
   const replYears = getReplacementYearsForPart(selectedPart || {});
@@ -2411,6 +2967,7 @@ function setAuthLocked(locked, displayName = '') {
   document.body.classList.toggle('auth-locked', locked);
   const gate = document.getElementById('authGate');
   if (gate) gate.classList.toggle('open', locked);
+  activeAuditUser = locked ? 'Sin sesión' : (String(displayName || '').trim() || 'Usuario');
 
   const userEl = document.getElementById('authCurrentUser');
   if (userEl) userEl.textContent = locked ? '' : `Usuario: ${displayName || 'Activo'}`;
@@ -2421,6 +2978,7 @@ function setAuthLocked(locked, displayName = '') {
   if (locked) clearAuthIdleTimer();
   else startAuthIdleTimer();
   if (locked) setTimeout(() => document.getElementById('loginUser')?.focus(), 60);
+  renderChangeHistory();
 }
 
 async function getAuthUserFromSupabase() {
@@ -2540,6 +3098,9 @@ async function bootstrapApp() {
   renderDashboard();
   renderAutotanques();
   renderDraftExpedienteList();
+  renderChangeHistory();
+  lastAuditSnapshot = buildAuditSnapshot();
+  changeAuditReady = true;
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -2588,14 +3149,16 @@ function openModalAutotanque(id) {
     document.getElementById('atEnServicio').checked= at.enServicio !== false;
     document.getElementById('atMarcaUnidad').value = at.marcaUnidad || '';
     document.getElementById('atModeloUnidad').value= at.modeloUnidad || '';
-    document.getElementById('atDictamenMes').value = at.dictamenNomMes || '';
-    document.getElementById('atDictamenAnio').value = at.dictamenNomAnio || '';
+    document.getElementById('atNom013Mes').value = at.nom013Mes || '';
+    document.getElementById('atNom013Anio').value = at.nom013Anio || '';
+    document.getElementById('atNom007SeshMes').value = at.nom007SeshMes || '';
+    document.getElementById('atNom007SeshAnio').value = at.nom007SeshAnio || '';
     document.getElementById('atRegistroSener').value = at.registroSener || '';
     document.getElementById('atNoRegTagSener').value = at.noRegTagSener || '';
     draftExpedienteDocs = (at.expediente || []).map(d => ({ ...d }));
     originalExpedientePaths = new Set(draftExpedienteDocs.map(d => d.storagePath).filter(Boolean));
   } else {
-    ['atEcon','atPlaca','atPlantaActual','atSerieUnidad','atSerieTanque','atCapacidad','atAnio','atNotas','atMarcaUnidad','atModeloUnidad','atDictamenMes','atDictamenAnio','atRegistroSener','atNoRegTagSener']
+    ['atEcon','atPlaca','atPlantaActual','atSerieUnidad','atSerieTanque','atCapacidad','atAnio','atNotas','atMarcaUnidad','atModeloUnidad','atNom013Mes','atNom013Anio','atNom007SeshMes','atNom007SeshAnio','atRegistroSener','atNoRegTagSener']
       .forEach(id => document.getElementById(id).value = '');
     document.getElementById('atActivo').checked = true;
     document.getElementById('atEnServicio').checked = true;
@@ -2613,6 +3176,7 @@ async function saveAutotanque() {
   if (!econ || !placa) return alert('No. Económico y Placas son obligatorios.');
   if (!plantaActual) return alert('Selecciona la planta actual.');
   const unitId = editingATId || currentDraftATId || genId();
+  const currentAt = editingATId ? autotanques.find(a => a.id === editingATId) : null;
 
   const pendingFile = document.getElementById('expDocFile')?.files?.[0];
   if (pendingFile) {
@@ -2642,8 +3206,12 @@ async function saveAutotanque() {
     enServicio:  document.getElementById('atEnServicio').checked,
     marcaUnidad: document.getElementById('atMarcaUnidad').value,
     modeloUnidad: document.getElementById('atModeloUnidad').value,
-    dictamenNomMes: document.getElementById('atDictamenMes').value,
-    dictamenNomAnio: document.getElementById('atDictamenAnio').value,
+    dictamenNomMes: currentAt?.dictamenNomMes || '',
+    dictamenNomAnio: currentAt?.dictamenNomAnio || '',
+    nom013Mes: document.getElementById('atNom013Mes').value,
+    nom013Anio: document.getElementById('atNom013Anio').value,
+    nom007SeshMes: document.getElementById('atNom007SeshMes').value,
+    nom007SeshAnio: document.getElementById('atNom007SeshAnio').value,
     registroSener: document.getElementById('atRegistroSener').value,
     noRegTagSener: document.getElementById('atNoRegTagSener').value,
     expediente:  draftExpedienteDocs.map(d => ({ ...d })),
@@ -2813,13 +3381,6 @@ function getLatestRecordByPartForUnit(atId) {
   return byPart;
 }
 
-function getLatestBrandByUnit(atId) {
-  const latest = records
-    .filter(r => r.atId === atId && String(r.brand || '').trim())
-    .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))[0];
-  return latest?.brand || '';
-}
-
 function renderAutotanquesExpiryMatrix(units = []) {
   const head = document.getElementById('tableATMatrixHead');
   const body = document.getElementById('tableATMatrixBody');
@@ -2837,29 +3398,27 @@ function renderAutotanquesExpiryMatrix(units = []) {
       <th>Capacidad</th>
       <th>No. Serie Tanque</th>
       <th>Marca</th>
+      <th>NOM-013<br>Vencimiento</th>
+      <th>NOM-007-SESH-2010<br>Vencimiento</th>
       ${parts.map(p => `<th>Fecha Vencimiento<br>${escapeHtml(p.desc)}</th>`).join('')}
     </tr>
   `;
   if (counter) counter.textContent = `${units.length} Autotanque(s) encontrado(s)`;
 
   if (!units.length) {
-    body.innerHTML = `<tr><td class="matrix-sticky-col" colspan="${8 + parts.length}" style="text-align:center;color:var(--muted);padding:20px">Sin autotanques para mostrar con el filtro actual.</td></tr>`;
+    body.innerHTML = `<tr><td class="matrix-sticky-col" colspan="${10 + parts.length}" style="text-align:center;color:var(--muted);padding:20px">Sin autotanques para mostrar con el filtro actual.</td></tr>`;
     return;
   }
 
   body.innerHTML = units.map(unit => {
     const partMap = getLatestRecordByPartForUnit(unit.id);
-    const brand = getLatestBrandByUnit(unit.id);
+    const brand = String(unit.marcaUnidad || '').trim();
     const partCells = parts.map(part => {
       const rec = partMap.get(String(part.no));
-      if (!rec || !rec.replDate) return '<td class="matrix-empty">—</td>';
-
-      const d = daysUntil(rec.replDate);
-      const txt = formatDate(rec.replDate);
-      if (d !== null && d < 0) return `<td class="matrix-expired">${txt}</td>`;
-      if (d !== null && d <= MATRIX_WARNING_DAYS) return `<td class="matrix-critical">${txt}</td>`;
-      return `<td class="matrix-ok">${txt}</td>`;
+      return buildMatrixDateCell(rec?.replDate || '');
     }).join('');
+    const nom013Expiry = getNormExpiryDate(unit, 5, 'nom013');
+    const nom007SeshExpiry = getNormExpiryDate(unit, 1, 'nom007sesh');
 
     return `
       <tr>
@@ -2877,6 +3436,8 @@ function renderAutotanquesExpiryMatrix(units = []) {
         <td class="matrix-meta">${escapeHtml(unit.capacidad ? `${unit.capacidad} L` : '—')}</td>
         <td class="matrix-meta">${escapeHtml(unit.serieTanque || '—')}</td>
         <td class="matrix-meta">${escapeHtml(brand || '—')}</td>
+        ${buildMatrixDateCell(nom013Expiry)}
+        ${buildMatrixDateCell(nom007SeshExpiry)}
         ${partCells}
       </tr>
     `;
@@ -2917,12 +3478,19 @@ function getUnitsForReplMatrix() {
 
   return units.filter(unit => {
     const partMap = getLatestRecordByPartForUnit(unit.id);
+    const normExpiryDates = [
+      getNormExpiryDate(unit, 5, 'nom013'), // NOM-013
+      getNormExpiryDate(unit, 1, 'nom007sesh')  // NOM-007-SESH-2010
+    ];
 
     if (filterStatus) {
       const hasStatus = PARTS.some(part => {
         const rec = partMap.get(String(part.no));
         if (!rec || !rec.replDate) return filterStatus === 'sin-fecha';
         return statusKey(daysUntil(rec.replDate)) === filterStatus;
+      }) || normExpiryDates.some(dateValue => {
+        if (!dateValue) return filterStatus === 'sin-fecha';
+        return statusKey(daysUntil(dateValue)) === filterStatus;
       });
       if (!hasStatus) return false;
     }
@@ -2931,6 +3499,9 @@ function getUnitsForReplMatrix() {
       const hasColor = PARTS.some(part => {
         const rec = partMap.get(String(part.no));
         return recordMatchesMatrixColor(rec, replMatrixColorFilter);
+      }) || normExpiryDates.some(dateValue => {
+        const virtualRec = { replDate: dateValue };
+        return recordMatchesMatrixColor(virtualRec, replMatrixColorFilter);
       });
       if (!hasColor) return false;
     }
@@ -2941,6 +3512,7 @@ function getUnitsForReplMatrix() {
     ]);
     const bag = [
       unit.econ, unit.placa, unit.plantaActual, unit.serieUnidad, unit.serieTanque, unit.capacidad, unit.notas,
+      ...normExpiryDates,
       ...recValues
     ];
     return bag.some(v => normalizeMatchText(v).includes(searchTerm));
@@ -2994,6 +3566,14 @@ function renderReemplazosExpiryMatrix() {
       <th class="matrix-fixed-col">Capacidad</th>
       <th class="matrix-fixed-col">No. Serie Tanque</th>
       <th class="matrix-fixed-col">Marca</th>
+      <th class="matrix-part-col">
+        <span class="matrix-head-title">F. Vencimiento</span>
+        <span class="matrix-head-sub">NOM-013</span>
+      </th>
+      <th class="matrix-part-col">
+        <span class="matrix-head-title">F. Vencimiento</span>
+        <span class="matrix-head-sub">NOM-007-SESH-2010</span>
+      </th>
       ${parts.map(p => `
         <th class="matrix-part-col">
           <span class="matrix-head-title">F. Vencimiento</span>
@@ -3005,27 +3585,31 @@ function renderReemplazosExpiryMatrix() {
   if (counter) counter.textContent = `${units.length} Autotanque(s) encontrado(s)`;
 
   if (!units.length) {
-    body.innerHTML = `<tr><td class="matrix-sticky-col" colspan="${8 + parts.length}" style="text-align:center;color:var(--muted);padding:20px">Sin autotanques para mostrar con el filtro actual.</td></tr>`;
+    body.innerHTML = `<tr><td class="matrix-sticky-col" colspan="${10 + parts.length}" style="text-align:center;color:var(--muted);padding:20px">Sin autotanques para mostrar con el filtro actual.</td></tr>`;
     syncReemplazosMatrixScroll();
     return;
   }
 
   body.innerHTML = units.map(unit => {
     const partMap = getLatestRecordByPartForUnit(unit.id);
-    const brand = getLatestBrandByUnit(unit.id);
+    const brand = String(unit.marcaUnidad || '').trim();
+    const nom013Expiry = getNormExpiryDate(unit, 5, 'nom013');
+    const nom007SeshExpiry = getNormExpiryDate(unit, 1, 'nom007sesh');
+
+    const buildNormCell = dateValue => {
+      const virtualRec = { replDate: dateValue };
+      if (replMatrixColorFilter && !recordMatchesMatrixColor(virtualRec, replMatrixColorFilter)) {
+        return '<td class="matrix-part-col matrix-empty">—</td>';
+      }
+      return buildMatrixDateCell(dateValue, 'matrix-part-col');
+    };
+
     const partCells = parts.map(part => {
       const rec = partMap.get(String(part.no));
-      if (!rec || !rec.replDate) return '<td class="matrix-part-col matrix-empty">—</td>';
-
-      const d = daysUntil(rec.replDate);
-      const txt = rec.replDate;
       if (replMatrixColorFilter && !recordMatchesMatrixColor(rec, replMatrixColorFilter)) {
         return '<td class="matrix-part-col matrix-empty">—</td>';
       }
-
-      if (d !== null && d < 0) return `<td class="matrix-part-col matrix-expired">${txt}</td>`;
-      if (d !== null && d <= MATRIX_WARNING_DAYS) return `<td class="matrix-part-col matrix-critical">${txt}</td>`;
-      return `<td class="matrix-part-col matrix-ok">${txt}</td>`;
+      return buildMatrixDateCell(rec?.replDate || '', 'matrix-part-col');
     }).join('');
 
     return `
@@ -3044,6 +3628,8 @@ function renderReemplazosExpiryMatrix() {
         <td class="matrix-meta">${escapeHtml(unit.capacidad || '—')}</td>
         <td class="matrix-meta">${escapeHtml(unit.serieTanque || '—')}</td>
         <td class="matrix-meta">${escapeHtml(brand || '—')}</td>
+        ${buildNormCell(nom013Expiry)}
+        ${buildNormCell(nom007SeshExpiry)}
         ${partCells}
       </tr>
     `;
@@ -3108,12 +3694,107 @@ function toggleAutotanquesPlantGroup(plantKey) {
   renderAutotanques();
 }
 
+function partNoContains(partNoValue, targetPartNo) {
+  const target = String(targetPartNo || '').trim();
+  if (!target) return false;
+  return String(partNoValue || '')
+    .split('/')
+    .map(x => String(x || '').trim())
+    .filter(Boolean)
+    .includes(target);
+}
+
+function isSecuritySealRecord(rec) {
+  if (!rec) return false;
+  if (partNoContains(rec.partNo, '13')) return true;
+  return normalizeMatchText(rec.partDesc || '').includes('sello de seguridad');
+}
+
+function isImageDoc(doc) {
+  const mime = String(doc?.mimeType || '').toLowerCase();
+  const fileName = String(doc?.fileName || '').toLowerCase();
+  return mime.startsWith('image/') || /\.(png|jpg|jpeg|webp|gif|bmp|svg)$/.test(fileName);
+}
+
+async function buildSealRegistryRowsForAutotanque(atId) {
+  const at = autotanques.find(a => a.id === atId);
+  if (!at) return [];
+  const atRecs = records
+    .filter(r => r.atId === atId)
+    .sort((a, b) => compareTextNatural(a.partNo, b.partNo));
+  const expedienteDocs = normalizeExpediente(at.expediente);
+  const sealRecords = atRecs.filter(isSecuritySealRecord);
+
+  return Promise.all(sealRecords.map(async rec => {
+    const relatedDocs = expedienteDocs.filter(doc => {
+      const docName = String(doc?.name || '');
+      return docName.includes(`Registro ${rec.id}`) && normalizeMatchText(docName).includes('evidencia sello seguridad');
+    });
+    const docsWithUrl = await Promise.all(relatedDocs.map(async doc => ({
+      ...doc,
+      accessUrl: await getExpedienteDocAccessUrl(doc)
+    })));
+    return { rec, docs: docsWithUrl };
+  }));
+}
+
+async function openSealRegistryForAutotanque(atId) {
+  const at = autotanques.find(a => a.id === atId);
+  if (!at) return alert('No se encontró el autotanque.');
+  const rows = await buildSealRegistryRowsForAutotanque(atId);
+  if (!rows.length) return alert('No hay sellos capturados para este autotanque.');
+
+  const titleEl = document.getElementById('modalDashboardDrillTitle');
+  const bodyEl = document.getElementById('modalDashboardDrillBody');
+  if (!titleEl || !bodyEl) return;
+
+  titleEl.textContent = `SELLOS COMPLETOS | ${at.econ} | ${at.placa}`;
+  bodyEl.innerHTML = rows.map((row, index) => `
+    <div class="card" style="margin-bottom:12px;padding:12px;background:var(--surface2)">
+      <div class="detail-row"><span class="detail-key">SELLO ${index + 1}:</span><span class="detail-val">${escapeHtml(row.rec.partNo || '13')} — ${escapeHtml(row.rec.partDesc || 'Sello de seguridad')}</span></div>
+      <div class="detail-row"><span class="detail-key">SERIE:</span><span class="detail-val" style="font-family:monospace">${escapeHtml(row.rec.serial || '—')}</span></div>
+      <div class="detail-row"><span class="detail-key">F. FABRICACIÓN:</span><span class="detail-val">${formatDate(row.rec.fabDate)}</span></div>
+      <div class="detail-row"><span class="detail-key">F. REEMPLAZO:</span><span class="detail-val">${formatDate(row.rec.replDate)}</span></div>
+      <div class="section-sep" style="margin:8px 0"></div>
+      <div style="font-size:12px;font-weight:700;margin-bottom:8px">IMÁGENES / EVIDENCIA (${row.docs.length})</div>
+      ${
+        row.docs.length
+          ? `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px">
+              ${row.docs.map(doc => {
+                const hasUrl = Boolean(doc.accessUrl);
+                const imagePreview = hasUrl && isImageDoc(doc)
+                  ? `<a href="${escapeHtml(doc.accessUrl)}" target="_blank" rel="noopener"><img src="${escapeHtml(doc.accessUrl)}" alt="${escapeHtml(doc.name || 'Evidencia')}" style="width:100%;height:120px;object-fit:cover;border:1px solid var(--border);border-radius:8px"></a>`
+                  : `<div style="height:120px;display:flex;align-items:center;justify-content:center;border:1px dashed var(--border);border-radius:8px;color:var(--muted);font-size:12px;padding:6px;text-align:center">${escapeHtml(doc.fileName || doc.name || 'Archivo')}</div>`;
+                const openBtn = hasUrl
+                  ? `<a class="btn btn-secondary" style="padding:4px 8px;font-size:10px;margin-top:6px;display:inline-flex" href="${escapeHtml(doc.accessUrl)}" target="_blank" rel="noopener">ABRIR</a>`
+                  : '<span class="text-muted" style="font-size:10px">Sin URL de acceso</span>';
+                return `
+                  <div>
+                    ${imagePreview}
+                    <div style="font-size:11px;margin-top:6px;white-space:pre-wrap;overflow-wrap:anywhere">${escapeHtml(doc.name || 'Evidencia')}</div>
+                    ${openBtn}
+                  </div>
+                `;
+              }).join('')}
+            </div>`
+          : '<p class="text-muted">No hay evidencia de sellos asociada a este registro.</p>'
+      }
+    </div>
+  `).join('');
+
+  document.getElementById('modalDashboardDrill').classList.add('open');
+}
+
 function viewAutotanque(id) {
   const at = autotanques.find(a => a.id === id);
+  if (!at) return alert('No se encontró el autotanque.');
   const atRecs = records
     .filter(r => r.atId === id)
     .sort((a, b) => compareTextNatural(a.partNo, b.partNo));
-  const expedienteDocs = at.expediente || [];
+  const expedienteDocs = normalizeExpediente(at.expediente);
+  const partsSorted = [...PARTS].sort((a, b) => compareTextNatural(a.no, b.no));
+  const capturedPartCount = partsSorted.filter(part => atRecs.some(r => partNoContains(r.partNo, part.no))).length;
+
   document.getElementById('modalDetailTitle').textContent = `${at.econ} | ${at.placa}`;
   document.getElementById('modalDetailBody').innerHTML = `
     <div class="grid-2" style="margin-bottom:16px">
@@ -3127,28 +3808,37 @@ function viewAutotanque(id) {
       <div class="detail-row"><span class="detail-key">EN SERVICIO:</span><span class="detail-val">${at.enServicio ? 'SI' : 'NO'}</span></div>
       <div class="detail-row"><span class="detail-key">MARCA:</span><span class="detail-val">${at.marcaUnidad || '—'}</span></div>
       <div class="detail-row"><span class="detail-key">MODELO:</span><span class="detail-val">${at.modeloUnidad || '—'}</span></div>
-      <div class="detail-row"><span class="detail-key">DICTAMEN NOM-007:</span><span class="detail-val">${(at.dictamenNomMes || at.dictamenNomAnio) ? `${at.dictamenNomMes || '—'} / ${at.dictamenNomAnio || '—'}` : '—'}</span></div>
+      <div class="detail-row"><span class="detail-key">EXPEDICIÓN NOM-013:</span><span class="detail-val">${(at.nom013Mes || at.nom013Anio) ? `${at.nom013Mes || '—'} / ${at.nom013Anio || '—'}` : '—'}</span></div>
+      <div class="detail-row"><span class="detail-key">EXPEDICIÓN NOM-007-SESH-2010:</span><span class="detail-val">${(at.nom007SeshMes || at.nom007SeshAnio) ? `${at.nom007SeshMes || '—'} / ${at.nom007SeshAnio || '—'}` : '—'}</span></div>
       <div class="detail-row"><span class="detail-key">REGISTRO SENER:</span><span class="detail-val">${at.registroSener || '—'}</span></div>
       <div class="detail-row"><span class="detail-key">NO. REG. TAG SENER:</span><span class="detail-val">${at.noRegTagSener || '—'}</span></div>
       <div class="detail-row" style="grid-column:1 / -1"><span class="detail-key">NOTAS AUTOTANQUE:</span><span class="detail-val" style="white-space:pre-wrap;overflow-wrap:anywhere">${escapeHtml(at.notas || '—')}</span></div>
     </div>
     <div class="section-sep"></div>
-    <div class="card-title">COMPONENTES REGISTRADOS (${atRecs.length})</div>
+    <div class="card-title">DATOS DE REGISTRO (${capturedPartCount}/${partsSorted.length})</div>
     <div class="table-wrap" style="max-height:300px;overflow-y:auto">
       <table>
-        <thead><tr><th>PIEZA</th><th>DESCRIPCIÓN</th><th>F.FAB</th><th>F.REEMPLAZO</th><th>ESTADO</th><th>NOTAS / OBS.</th></tr></thead>
+        <thead><tr><th>PIEZA</th><th>DESCRIPCIÓN</th><th>NÚM. SERIE</th><th>F.FAB</th><th>F.REEMPLAZO</th><th>ESTADO</th><th>NOTAS / OBS.</th><th>ACCIÓN</th></tr></thead>
         <tbody>
-          ${atRecs.length ? atRecs.map(r => `
-            <tr>
-              <td style="font-family:monospace;color:var(--accent)">${escapeHtml(r.partNo || '—')}</td>
-              <td>${escapeHtml(r.partDesc || '—')}</td>
-              <td>${formatDate(r.fabDate)}</td>
-              <td>${formatDate(r.replDate)}</td>
-              <td>${statusBadge(daysUntil(r.replDate))}</td>
-              <td style="font-size:11px; white-space:pre-wrap; overflow-wrap:anywhere">${escapeHtml(r.notes || '—')}</td>
-            </tr>`).join('') :
-            '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:20px">Sin componentes registrados</td></tr>'
-          }
+          ${partsSorted.map(part => {
+            const recs = atRecs.filter(r => partNoContains(r.partNo, part.no));
+            const latest = recs.slice().sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))[0] || null;
+            const actionBtn = part.no === '13'
+              ? `<button class="btn btn-secondary" style="padding:4px 8px;font-size:10px" onclick="openSealRegistryForAutotanque('${at.id}')">VER SELLOS</button>`
+              : '<span class="text-muted">—</span>';
+            return `
+              <tr>
+                <td style="font-family:monospace;color:var(--accent)">${escapeHtml(part.no || '—')}</td>
+                <td>${escapeHtml(part.desc || latest?.partDesc || '—')}</td>
+                <td style="font-family:monospace">${escapeHtml(latest?.serial || (part.no === '13' ? `${recs.length} sello(s)` : '—'))}</td>
+                <td>${formatDate(latest?.fabDate || '')}</td>
+                <td>${formatDate(latest?.replDate || '')}</td>
+                <td>${latest ? statusBadge(daysUntil(latest.replDate)) : '<span class="badge badge-none">SIN REGISTRO</span>'}</td>
+                <td style="font-size:11px; white-space:pre-wrap; overflow-wrap:anywhere">${escapeHtml(latest?.notes || '—')}</td>
+                <td>${actionBtn}</td>
+              </tr>
+            `;
+          }).join('')}
         </tbody>
       </table>
     </div>
@@ -4167,8 +4857,25 @@ function downloadCSV(filename, rows) {
   a.click();
 }
 
+function exportChangeHistoryCSV() {
+  if (!changeHistory.length) {
+    alert('No hay historial de cambios para exportar.');
+    return;
+  }
+  const rows = [['FECHA','MOVIMIENTO','USUARIO','ACCION']];
+  changeHistory.forEach(item => {
+    rows.push([
+      formatDateTime(item.timestamp),
+      item.movement || '',
+      item.user || '',
+      item.action || ''
+    ]);
+  });
+  downloadCSV('historial_cambios_inventario.csv', rows);
+}
+
 function exportJSON() {
-  const data = { autotanques, records, stationRecords, partImages, exportedAt: new Date().toISOString() };
+  const data = { autotanques, records, stationRecords, partImages, changeHistory, exportedAt: new Date().toISOString() };
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([JSON.stringify(data,null,2)], {type:'application/json'}));
   a.download = 'respaldo_inventario_NOM007.json';
@@ -4382,6 +5089,7 @@ function handleImport(e) {
       const data = JSON.parse(ev.target.result);
       const hasPartImages = Object.prototype.hasOwnProperty.call(data || {}, 'partImages');
       const hasStationRecords = Object.prototype.hasOwnProperty.call(data || {}, 'stationRecords');
+      const hasChangeHistory = Object.prototype.hasOwnProperty.call(data || {}, 'changeHistory');
       const incomingPartImagesCount = hasPartImages
         ? Object.keys(data.partImages || {}).length
         : Object.keys(partImages || {}).length;
@@ -4401,9 +5109,22 @@ function handleImport(e) {
       const policySync = applyReplacementPolicyToRecords(records);
       records = policySync.records;
       partImages  = hasPartImages ? normalizePartImages(data.partImages || {}) : normalizePartImages(partImages);
+      if (hasChangeHistory) {
+        changeHistory = Array.isArray(data.changeHistory)
+          ? data.changeHistory.map(item => ({
+              id: String(item?.id || genId()),
+              timestamp: String(item?.timestamp || ''),
+              action: String(item?.action || ''),
+              movement: String(item?.movement || ''),
+              user: String(item?.user || 'Sistema')
+            })).filter(item => item.timestamp && item.movement).slice(0, CHANGE_HISTORY_LIMIT)
+          : [];
+        persistChangeHistory();
+      }
       const replaceImagesPayload = hasPartImages ? partImages : null;
       const replaceStationRecordsPayload = hasStationRecords ? stationRecords : null;
-      if (runtimeUseSupabase && !(await replaceRemoteData(autotanques, records, replaceImagesPayload, replaceStationRecordsPayload))) return;
+      const replaceChangeHistoryPayload = hasChangeHistory ? changeHistory : null;
+      if (runtimeUseSupabase && !(await replaceRemoteData(autotanques, records, replaceImagesPayload, replaceStationRecordsPayload, replaceChangeHistoryPayload))) return;
       if (!save()) return;
       populatePlantSelectors();
       renderDashboard();
@@ -4411,6 +5132,7 @@ function handleImport(e) {
       renderEstaciones();
       populateATSelect();
       refreshSelectedPartImageUI();
+      renderChangeHistory();
       alert('✅ Importación exitosa.');
     } catch { alert('❌ Archivo inválido.'); }
   };

@@ -357,7 +357,7 @@
       <div class="matrix-info-bar mt-12">
         <span id="replMatrixCounter">0 Autotanque(s) encontrado(s)</span>
       </div>
-      <p class="text-muted mt-12">Las celdas en rojo indican componentes vencidos.</p>
+      <p class="text-muted mt-12">Las celdas en rojo indican vencimientos (componentes y normas).</p>
       <div class="matrix-legend matrix-legend-inline">
         <button type="button" class="matrix-legend-item matrix-legend-btn" data-matrix-filter="expired" onclick="setReplMatrixColorFilter('expired')"><span class="matrix-dot matrix-dot-expired"></span>Vencido</button>
         <button type="button" class="matrix-legend-item matrix-legend-btn" data-matrix-filter="warning" onclick="setReplMatrixColorFilter('warning')"><span class="matrix-dot matrix-dot-warning"></span>Por vencer</button>
@@ -395,9 +395,9 @@
       <div class="card">
         <div class="card-title">INFORMACIÓN NORMATIVA</div>
         <div style="font-size:12px; line-height:1.8; color:var(--text)">
-          <div class="detail-row"><span class="detail-key">NORMA:</span><span class="detail-val">NOM-EM-007-ASEA-2025</span></div>
-          <div class="detail-row"><span class="detail-key">SUSTITUCIÓN:</span><span class="detail-val">Obligatoria cada 10 años</span></div>
-          <div class="detail-row"><span class="detail-key">REFERENCIA:</span><span class="detail-val">Fecha fab. o instalación (la que ocurra primero)</span></div>
+          <div class="detail-row"><span class="detail-key">NOM-007-ASEA-2025:</span><span class="detail-val">Sustitución cada 10 años en valvulas y flexibles menores a  7 años</span></div>
+          <div class="detail-row"><span class="detail-key">NOM-013-SEDG-2002</span><span class="detail-val">vigencia 5 años desde su expedición</span></div>
+          
           <div class="section-sep"></div>
           <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:10px">
             <label for="normPlantSelect" style="font-size:11px;color:var(--muted)">DESCARGAR FORMATO POR PLANTA</label>
@@ -412,6 +412,29 @@
           </div>
           <p style="color:var(--warn); font-size:11px">⚠️ El sistema calcula la fecha de reemplazo automáticamente sumando 10 años a la fecha base obtenida del código o fecha de fabricación (ej. 6A92, 09C22 o 27/04/2026).</p>
         </div>
+      </div>
+    </div>
+    <div class="card mt-16">
+      <div class="card-title">HISTORIAL DE CAMBIOS</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px">
+        <p class="text-muted" id="changeHistorySummary" style="margin:0">Sin cambios registrados.</p>
+        <button class="btn btn-secondary" onclick="exportChangeHistoryCSV()">🧾 EXPORTAR HISTORIAL CSV</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:210px">FECHA</th>
+              <th>MOVIMIENTO</th>
+              <th style="width:220px">USUARIO</th>
+            </tr>
+          </thead>
+          <tbody id="changeHistoryBody">
+            <tr>
+              <td colspan="3" style="text-align:center;color:var(--muted);padding:20px">Sin cambios registrados.</td>
+            </tr>
+          </tbody>
+        </table>
       </div>
     </div>
   </div>
@@ -486,10 +509,19 @@
       </div>
       <div class="grid-2 mt-12">
         <div>
-          <label>FECHA DICTAMEN NOM-007</label>
+          <label>FECHA EXPEDICIÓN NOM-013</label>
           <div class="grid-2" style="gap:8px">
-            <input type="number" id="atDictamenMes" min="1" max="12" placeholder="Mes (1-12)">
-            <input type="number" id="atDictamenAnio" min="2000" max="2100" placeholder="Año">
+            <input type="number" id="atNom013Mes" min="1" max="12" placeholder="Mes (1-12)">
+            <input type="number" id="atNom013Anio" min="2000" max="2100" placeholder="Año">
+          </div>
+        </div>
+      </div>
+      <div class="grid-2 mt-12">
+        <div>
+          <label>FECHA EXPEDICIÓN NOM-007-SESH-2010</label>
+          <div class="grid-2" style="gap:8px">
+            <input type="number" id="atNom007SeshMes" min="1" max="12" placeholder="Mes (1-12)">
+            <input type="number" id="atNom007SeshAnio" min="2000" max="2100" placeholder="Año">
           </div>
         </div>
       </div>
