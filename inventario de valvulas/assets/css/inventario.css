@@ -115,6 +115,9 @@
 
   /* ── Tab nav ─────────────────────────────── */
   .tabs { display: flex; gap: 4px; margin-bottom: 24px; border-bottom: 1px solid var(--border); padding-bottom: 0; }
+  .tabs::-webkit-scrollbar { height: 8px; }
+  .tabs::-webkit-scrollbar-track { background: #e2e8f0; border-radius: 999px; }
+  .tabs::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 999px; }
   .tab-btn {
     font-family: 'Rajdhani', sans-serif; font-weight: 600; font-size: 14px;
     letter-spacing: 1px; padding: 10px 20px; cursor: pointer;
@@ -717,12 +720,139 @@
   /* ── Responsive ──────────────────────────── */
   @media (max-width: 768px) {
     :root { --sticky-table-top: 74px; }
+    header {
+      padding: 10px 12px;
+      gap: 10px;
+      align-items: flex-start;
+      flex-wrap: wrap;
+    }
+    .logo-area {
+      width: 100%;
+      gap: 8px;
+    }
+    .header-title h1 {
+      font-size: 18px;
+      letter-spacing: .6px;
+    }
+    .header-title p {
+      font-size: 10px;
+      letter-spacing: 1.1px;
+    }
+    .header-actions {
+      width: 100%;
+      justify-content: flex-end;
+    }
+    .header-logout {
+      margin-left: auto;
+    }
+    .container {
+      padding: 12px;
+    }
+    .card {
+      padding: 14px;
+    }
+    .tabs {
+      display: grid;
+      grid-auto-flow: column;
+      grid-auto-columns: max-content;
+      gap: 8px;
+      margin-bottom: 14px;
+      padding: 0 2px 8px;
+      overflow-x: scroll;
+      overflow-y: hidden;
+      white-space: nowrap;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior-x: contain;
+      touch-action: pan-x;
+      scroll-snap-type: x proximity;
+      scrollbar-width: auto;
+      scrollbar-color: #94a3b8 #e2e8f0;
+    }
+    .tab-btn {
+      width: auto;
+      flex: 0 0 auto;
+      padding: 10px 12px;
+      font-size: 12px;
+      letter-spacing: .7px;
+      border: 1px solid var(--border);
+      border-bottom-width: 1px;
+      border-radius: 6px;
+      text-align: center;
+      scroll-snap-align: start;
+    }
+    .tab-btn.active {
+      border-color: var(--accent);
+      background: rgba(3, 105, 161, .08);
+    }
     .table-wrap.table-freeze-y { max-height: 56vh; }
     .matrix-wrap { max-height: 56vh; }
     .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
     .header-badge { display: none; }
     .header-user { display: none; }
     .logo-icon { width: 118px; height: 42px; padding: 3px 5px; }
+    .modal-overlay {
+      padding: 0;
+      align-items: flex-end;
+    }
+    .modal {
+      max-width: 100%;
+      width: 100%;
+      max-height: 95dvh;
+      border-radius: 12px 12px 0 0;
+    }
+    .modal-header,
+    .modal-body,
+    .modal-footer {
+      padding-left: 14px;
+      padding-right: 14px;
+    }
+    .modal-footer {
+      position: sticky;
+      bottom: 0;
+      background: var(--surface);
+      z-index: 2;
+      flex-wrap: wrap;
+      justify-content: stretch;
+    }
+    .modal-footer .btn {
+      width: 100%;
+      justify-content: center;
+    }
+    .search-row,
+    .at-header {
+      align-items: stretch;
+      gap: 8px;
+    }
+    .search-row > *,
+    .at-header > * {
+      width: 100%;
+      min-width: 0;
+    }
+    .at-header .flex-gap {
+      width: 100%;
+      align-items: stretch;
+      gap: 8px;
+    }
+    .at-header .flex-gap > * {
+      width: 100%;
+      min-width: 0;
+    }
+    .search-input-wrap {
+      min-width: 0;
+    }
+    input,
+    select,
+    textarea,
+    .btn {
+      min-height: 44px;
+    }
+    .detail-row {
+      flex-wrap: wrap;
+      gap: 4px;
+    }
+    .detail-key {
+      min-width: 0;
+    }
     .expediente-controls { grid-template-columns: 1fr; }
     .repl-controls { grid-template-columns: 1fr; min-width: 100%; }
     .repl-controls .search-input-wrap { grid-column: auto; }
