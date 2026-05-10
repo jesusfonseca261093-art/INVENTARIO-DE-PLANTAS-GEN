@@ -858,6 +858,23 @@
     .repl-controls .search-input-wrap { grid-column: auto; }
     .donut-wrap { grid-template-columns: 1fr; }
     .mini-bar-row { grid-template-columns: 1fr; }
+
+    /* Mobile-only fix: keep Autotanques table readable via horizontal scroll */
+    #tab-autotanques .table-wrap {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    #tab-autotanques table {
+      table-layout: auto;
+      min-width: 1220px;
+    }
+    #tab-autotanques th,
+    #tab-autotanques td {
+      width: auto !important;
+      white-space: nowrap;
+      overflow-wrap: normal;
+      word-break: normal;
+    }
   }
 
   .section-sep { height: 1px; background: var(--border); margin: 20px 0; }
