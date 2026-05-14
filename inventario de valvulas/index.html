@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Inventario NOM-EM-007-ASEA-2025 | Autotanques</title>
 <link rel="stylesheet" href="assets/css/inventario.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.20/index.global.min.css">
 </head>
 <body>
 
@@ -139,6 +140,7 @@
         <p class="text-muted">Sin registros aún.</p>
       </div>
     </div>
+
   </div>
 
   <!-- ── AUTOTANQUES ───────────────────────── -->
@@ -352,25 +354,34 @@
         </select>
       </div>
     </div>
-    <div class="card mt-16">
-      <div class="card-title">MATRIZ DE VENCIMIENTOS POR COMPONENTE</div>
-      <div class="matrix-info-bar mt-12">
-        <span id="replMatrixCounter">0 Autotanque(s) encontrado(s)</span>
+    <div class="grid-2 repl-layout-grid mt-16">
+      <div class="card repl-matrix-card">
+        <div class="card-title">MATRIZ DE VENCIMIENTOS POR COMPONENTE</div>
+        <div class="matrix-info-bar mt-12">
+          <span id="replMatrixCounter">0 Autotanque(s) encontrado(s)</span>
+        </div>
+        <p class="text-muted mt-12">Las celdas en rojo indican vencimientos (componentes y normas).</p>
+        <div class="matrix-legend matrix-legend-inline">
+          <button type="button" class="matrix-legend-item matrix-legend-btn" data-matrix-filter="expired" onclick="setReplMatrixColorFilter('expired')"><span class="matrix-dot matrix-dot-expired"></span>Vencido</button>
+          <button type="button" class="matrix-legend-item matrix-legend-btn" data-matrix-filter="warning" onclick="setReplMatrixColorFilter('warning')"><span class="matrix-dot matrix-dot-warning"></span>Por vencer</button>
+          <button type="button" class="matrix-legend-item matrix-legend-btn" data-matrix-filter="ok" onclick="setReplMatrixColorFilter('ok')"><span class="matrix-dot matrix-dot-ok"></span>Vigente</button>
+        </div>
+        <div class="matrix-scroll-top" id="matrixReplTopScroll" aria-label="Desplazamiento horizontal superior">
+          <div id="matrixReplTopScrollInner"></div>
+        </div>
+        <div class="table-wrap matrix-wrap" id="replMatrixWrap">
+          <table id="tableReplMatrix">
+            <thead id="tableReplMatrixHead"></thead>
+            <tbody id="tableReplMatrixBody"></tbody>
+          </table>
+        </div>
       </div>
-      <p class="text-muted mt-12">Las celdas en rojo indican vencimientos (componentes y normas).</p>
-      <div class="matrix-legend matrix-legend-inline">
-        <button type="button" class="matrix-legend-item matrix-legend-btn" data-matrix-filter="expired" onclick="setReplMatrixColorFilter('expired')"><span class="matrix-dot matrix-dot-expired"></span>Vencido</button>
-        <button type="button" class="matrix-legend-item matrix-legend-btn" data-matrix-filter="warning" onclick="setReplMatrixColorFilter('warning')"><span class="matrix-dot matrix-dot-warning"></span>Por vencer</button>
-        <button type="button" class="matrix-legend-item matrix-legend-btn" data-matrix-filter="ok" onclick="setReplMatrixColorFilter('ok')"><span class="matrix-dot matrix-dot-ok"></span>Vigente</button>
-      </div>
-      <div class="matrix-scroll-top" id="matrixReplTopScroll" aria-label="Desplazamiento horizontal superior">
-        <div id="matrixReplTopScrollInner"></div>
-      </div>
-      <div class="table-wrap matrix-wrap" id="replMatrixWrap">
-        <table id="tableReplMatrix">
-          <thead id="tableReplMatrixHead"></thead>
-          <tbody id="tableReplMatrixBody"></tbody>
-        </table>
+
+      <div class="card repl-calendar-card">
+        <div class="card-title">CALENDARIO DE MANTENIMIENTOS</div>
+        <p class="text-muted mt-12"></p>
+        <div id="replMaintenanceCalendarEmpty" class="text-muted" style="display:none;margin-top:10px"></div>
+        <div id="replMaintenanceCalendar"></div>
       </div>
     </div>
   </div>
@@ -706,8 +717,50 @@
   </div>
 </div>
 
+<!-- ── MODAL: PROGRAMAR/REGISTRAR MANTENIMIENTO ─────────── -->
+<div class="modal-overlay" id="modalMaintenance">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="modalMaintenanceTitle">MANTENIMIENTO AUTOTANQUE</h3>
+      <button class="modal-close" onclick="closeModal('modalMaintenance')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="card" style="background:var(--surface2); padding:12px; margin-bottom:12px">
+        <div id="maintenanceAtLabel" style="font-weight:700; color:var(--accent)">—</div>
+        <div id="maintenanceAtPlant" class="text-muted">—</div>
+      </div>
+      <div id="maintenanceAtSelectWrap" style="display:none;margin-bottom:12px">
+        <label>AUTOTANQUE *</label>
+        <select id="maintenanceAtSelect" onchange="onMaintenanceAtSelectChange()">
+          <option value="">— Seleccionar autotanque —</option>
+        </select>
+      </div>
+      <div class="grid-2" style="margin-bottom:12px">
+        <div>
+          <label>FECHA DE MANTENIMIENTO *</label>
+          <input type="date" id="maintenanceDate">
+        </div>
+      </div>
+      <div style="margin-bottom:12px">
+        <label>NOTAS (OPCIONAL)</label>
+        <textarea id="maintenanceNotes" rows="2" placeholder="Ej. Cambio de válvulas y verificación general"></textarea>
+      </div>
+      <div class="section-sep"></div>
+      <div class="card-title" style="margin-bottom:8px">HISTORIAL DEL AUTOTANQUE</div>
+      <div id="maintenanceHistory" class="table-wrap">
+        <p class="text-muted">Sin mantenimientos registrados.</p>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modalMaintenance')">CANCELAR</button>
+      <button class="btn btn-primary" id="maintenanceSaveBtn" onclick="saveMaintenanceEntry()">GUARDAR</button>
+    </div>
+  </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="assets/config/supabase.config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.20/index.global.min.js"></script>
 <script src="assets/js/inventario.js" defer></script>
 </body>
 </html>

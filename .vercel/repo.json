@@ -1,0 +1,11 @@
+{
+  "remoteName": "origin",
+  "projects": [
+    {
+      "id": "prj_hlpp12cHPE8JQDttOANf5h9ztrfK",
+      "name": "inventario-de-plantas-gen",
+      "directory": ".",
+      "orgId": "team_O13b5NlgezAuK0BVB2OnWjXt"
+    }
+  ]
+}

@@ -100,6 +100,7 @@ const ESTACIONES_CARBURACION = [
 ];
 const STATIONS_STORAGE_KEY = 'at_estaciones';
 const STATION_RECORDS_STORAGE_KEY = 'at_station_records';
+const MAINTENANCE_STORAGE_KEY = 'at_maintenance_schedule';
 const CHANGE_HISTORY_STORAGE_KEY = 'at_change_history';
 const CHANGE_HISTORY_PENDING_STORAGE_KEY = 'at_change_history_pending';
 const CHANGE_HISTORY_LIMIT = 5000;
@@ -110,11 +111,15 @@ let records     = JSON.parse(localStorage.getItem('at_records') || '[]');
 let partImages  = JSON.parse(localStorage.getItem('at_part_images') || '{}');
 let estaciones  = loadEstaciones();
 let stationRecords = loadStationRecords();
+let maintenanceSchedule = loadMaintenanceSchedule();
 let selectedPart = null;
 let editingATId  = null;
 let currentDraftATId = null;
 let editingRecordId = null;
 let editingEstacionId = null;
+let maintenanceEditingAtId = null;
+let maintenanceEditingEntryId = null;
+let maintenanceFullCalendar = null;
 let expandedAutotanquePlantKey = null;
 let expandedPlantGroupKey = null;
 let expandedStationGroupKey = null;
@@ -331,6 +336,366 @@ function save() {
   } catch (err) {
     alert('No se pudo guardar en almacenamiento local. Reduce tamano de archivos del expediente o imagenes e intenta de nuevo.');
     return false;
+  }
+}
+
+function normalizeMaintenanceEntry(entry) {
+  return {
+    id: String(entry?.id || genId()),
+    atId: String(entry?.atId || '').trim(),
+    maintDate: String(entry?.maintDate || '').trim(),
+    notes: String(entry?.notes || '').trim(),
+    createdAt: String(entry?.createdAt || new Date().toISOString()),
+    updatedAt: String(entry?.updatedAt || entry?.createdAt || new Date().toISOString())
+  };
+}
+
+function loadMaintenanceSchedule() {
+  const raw = localStorage.getItem(MAINTENANCE_STORAGE_KEY);
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map(normalizeMaintenanceEntry)
+      .filter(item => item.atId && item.maintDate);
+  } catch {
+    return [];
+  }
+}
+
+function persistMaintenanceSchedule() {
+  try {
+    localStorage.setItem(MAINTENANCE_STORAGE_KEY, JSON.stringify(maintenanceSchedule));
+  } catch {}
+}
+
+function getMaintenanceEntriesByAtId(atId) {
+  return maintenanceSchedule
+    .filter(item => item.atId === atId)
+    .sort((a, b) => String(a.maintDate || '').localeCompare(String(b.maintDate || '')));
+}
+
+function getMaintenanceStatusByDate(dateStr) {
+  const days = daysUntil(dateStr);
+  if (days === null) return { key: 'sin-fecha', label: 'Sin fecha' };
+  if (days < 0) return { key: 'finalizado', label: 'Finalizado' };
+  if (days === 0) return { key: 'en-proceso', label: 'En proceso' };
+  return { key: 'programado', label: 'Programado' };
+}
+
+function getTodayDateInputValue() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function resetMaintenanceForm(presetDate = '') {
+  const dateInput = document.getElementById('maintenanceDate');
+  const notesInput = document.getElementById('maintenanceNotes');
+  const saveBtn = document.getElementById('maintenanceSaveBtn');
+  if (dateInput) dateInput.value = presetDate || getTodayDateInputValue();
+  if (notesInput) notesInput.value = '';
+  maintenanceEditingEntryId = null;
+  if (saveBtn) saveBtn.textContent = 'GUARDAR';
+}
+
+function populateMaintenanceAtSelect(selectedAtId = '') {
+  const select = document.getElementById('maintenanceAtSelect');
+  if (!select) return;
+  const options = autotanques
+    .map(unit => ({
+      id: String(unit?.id || ''),
+      econ: String(unit?.econ || '—'),
+      placa: String(unit?.placa || '—'),
+      planta: String(unit?.plantaActual || 'SIN PLANTA')
+    }))
+    .sort((a, b) =>
+      compareTextNatural(a.planta, b.planta) ||
+      compareTextNatural(a.econ, b.econ) ||
+      compareTextNatural(a.placa, b.placa)
+    );
+
+  select.innerHTML = `
+    <option value="">— Seleccionar autotanque —</option>
+    ${options.map(item => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.econ)} | ${escapeHtml(item.placa)} | ${escapeHtml(item.planta)}</option>`).join('')}
+  `;
+  if (selectedAtId && options.some(item => item.id === selectedAtId)) {
+    select.value = selectedAtId;
+  }
+}
+
+function setMaintenanceTargetAt(atId) {
+  const selectedAtId = String(atId || '').trim();
+  const at = autotanques.find(item => item.id === selectedAtId);
+  const labelEl = document.getElementById('maintenanceAtLabel');
+  const plantEl = document.getElementById('maintenanceAtPlant');
+  const select = document.getElementById('maintenanceAtSelect');
+
+  if (!at) {
+    maintenanceEditingAtId = null;
+    if (labelEl) labelEl.textContent = 'Selecciona un autotanque';
+    if (plantEl) plantEl.textContent = 'Planta: —';
+    if (select) select.value = '';
+    const wrap = document.getElementById('maintenanceHistory');
+    if (wrap) wrap.innerHTML = '<p class="text-muted">Selecciona un autotanque para ver su historial.</p>';
+    return;
+  }
+
+  maintenanceEditingAtId = at.id;
+  if (labelEl) labelEl.textContent = `${at.econ || '—'} | ${at.placa || '—'}`;
+  if (plantEl) plantEl.textContent = `Planta: ${at.plantaActual || 'SIN PLANTA'}`;
+  if (select && select.value !== at.id) select.value = at.id;
+  renderMaintenanceHistory(at.id);
+}
+
+function onMaintenanceAtSelectChange() {
+  const select = document.getElementById('maintenanceAtSelect');
+  const atId = String(select?.value || '').trim();
+  maintenanceEditingEntryId = null;
+  const saveBtn = document.getElementById('maintenanceSaveBtn');
+  if (saveBtn) saveBtn.textContent = 'GUARDAR';
+  setMaintenanceTargetAt(atId);
+}
+
+function renderMaintenanceHistory(atId) {
+  const wrap = document.getElementById('maintenanceHistory');
+  if (!wrap) return;
+  const entries = getMaintenanceEntriesByAtId(atId);
+  if (!entries.length) {
+    wrap.innerHTML = '<p class="text-muted">Sin mantenimientos registrados.</p>';
+    return;
+  }
+  wrap.innerHTML = `<table><thead><tr><th>FECHA</th><th>ESTADO</th><th>NOTAS</th><th>ACCIONES</th></tr></thead><tbody>
+    ${entries.map(item => {
+      const status = getMaintenanceStatusByDate(item.maintDate);
+      return `<tr>
+        <td>${formatDate(item.maintDate)}</td>
+        <td><span class="badge ${status.key === 'programado' ? 'badge-warn' : status.key === 'en-proceso' ? 'badge-danger' : 'badge-ok'}">${status.label.toUpperCase()}</span></td>
+        <td style="white-space:pre-wrap;overflow-wrap:anywhere">${escapeHtml(item.notes || '—')}</td>
+        <td>
+          <div class="flex-gap">
+            <button class="btn btn-secondary" style="padding:4px 8px;font-size:10px" onclick="editMaintenanceEntry('${item.id}')">✏️ EDITAR</button>
+            <button class="btn btn-danger" style="padding:4px 8px;font-size:10px" onclick="deleteMaintenanceEntry('${item.id}')">🗑 ELIMINAR</button>
+          </div>
+        </td>
+      </tr>`;
+    }).join('')}
+  </tbody></table>`;
+}
+
+function editMaintenanceEntry(entryId) {
+  const entry = maintenanceSchedule.find(item => item.id === entryId && item.atId === maintenanceEditingAtId);
+  if (!entry) return alert('No se encontró el registro de mantenimiento.');
+  maintenanceEditingEntryId = entry.id;
+  const dateInput = document.getElementById('maintenanceDate');
+  const notesInput = document.getElementById('maintenanceNotes');
+  const saveBtn = document.getElementById('maintenanceSaveBtn');
+  if (dateInput) dateInput.value = entry.maintDate || getTodayDateInputValue();
+  if (notesInput) notesInput.value = entry.notes || '';
+  if (saveBtn) saveBtn.textContent = 'ACTUALIZAR';
+}
+
+function deleteMaintenanceEntry(entryId) {
+  const entry = maintenanceSchedule.find(item => item.id === entryId && item.atId === maintenanceEditingAtId);
+  if (!entry) return alert('No se encontró el registro de mantenimiento.');
+  if (!confirm(`¿Eliminar mantenimiento del ${formatDate(entry.maintDate)}?`)) return;
+
+  maintenanceSchedule = maintenanceSchedule.filter(item => item.id !== entry.id);
+  persistMaintenanceSchedule();
+  if (maintenanceEditingEntryId === entry.id) {
+    resetMaintenanceForm();
+  }
+  renderMaintenanceHistory(maintenanceEditingAtId);
+  renderDashboard();
+  renderReemplazosExpiryMatrix();
+}
+
+function openMaintenanceModal(atId = '', presetDate = '') {
+  const selectedAtId = String(atId || '').trim();
+  const at = autotanques.find(item => item.id === selectedAtId);
+  const selectWrap = document.getElementById('maintenanceAtSelectWrap');
+
+  document.getElementById('modalMaintenanceTitle').textContent = 'MANTENIMIENTO AUTOTANQUE';
+  populateMaintenanceAtSelect(at?.id || '');
+  if (selectWrap) {
+    selectWrap.style.display = at ? 'none' : 'block';
+  }
+  resetMaintenanceForm(presetDate);
+  setMaintenanceTargetAt(at?.id || '');
+  document.getElementById('modalMaintenance').classList.add('open');
+}
+
+function saveMaintenanceEntry() {
+  if (!maintenanceEditingAtId) return alert('No hay autotanque seleccionado para mantenimiento.');
+  const maintDate = document.getElementById('maintenanceDate')?.value || '';
+  if (!maintDate) return alert('Selecciona la fecha de mantenimiento.');
+  const notes = document.getElementById('maintenanceNotes')?.value || '';
+
+  if (maintenanceEditingEntryId) {
+    const idx = maintenanceSchedule.findIndex(item => item.id === maintenanceEditingEntryId && item.atId === maintenanceEditingAtId);
+    if (idx < 0) return alert('No se encontró el registro de mantenimiento a editar.');
+    const current = maintenanceSchedule[idx];
+    maintenanceSchedule[idx] = normalizeMaintenanceEntry({
+      ...current,
+      maintDate,
+      notes,
+      updatedAt: new Date().toISOString()
+    });
+  } else {
+    maintenanceSchedule.push(normalizeMaintenanceEntry({
+      id: genId(),
+      atId: maintenanceEditingAtId,
+      maintDate,
+      notes,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    }));
+  }
+  maintenanceSchedule.sort((a, b) => String(a.maintDate || '').localeCompare(String(b.maintDate || '')));
+  persistMaintenanceSchedule();
+  renderMaintenanceHistory(maintenanceEditingAtId);
+  renderDashboard();
+  renderReemplazosExpiryMatrix();
+  resetMaintenanceForm();
+}
+
+function renderDashboardMaintenanceCalendar() {
+  const wrap = document.getElementById('dashboardMaintenanceCalendar');
+  if (!wrap) return;
+
+  const rows = maintenanceSchedule
+    .map(item => {
+      const at = autotanques.find(unit => unit.id === item.atId);
+      if (!at) return null;
+      return {
+        ...item,
+        econ: at.econ || '—',
+        placa: at.placa || '—',
+        planta: at.plantaActual || 'SIN PLANTA',
+        status: getMaintenanceStatusByDate(item.maintDate)
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => String(a.maintDate || '').localeCompare(String(b.maintDate || '')));
+
+  if (!rows.length) {
+    wrap.innerHTML = '<p class="text-muted">Sin mantenimientos programados.</p>';
+    return;
+  }
+
+  wrap.innerHTML = `<table><thead><tr><th>FECHA</th><th>AUTOTANQUE</th><th>PLANTA</th><th>ESTADO</th><th>NOTAS</th></tr></thead><tbody>
+    ${rows.map(row => {
+      const statusClass = row.status.key === 'programado'
+        ? 'badge-warn'
+        : (row.status.key === 'en-proceso' ? 'badge-danger' : 'badge-ok');
+      return `<tr>
+        <td style="font-family:monospace">${formatDate(row.maintDate)}</td>
+        <td><b style="color:var(--accent)">${escapeHtml(row.econ)}</b> | ${escapeHtml(row.placa)}</td>
+        <td>${escapeHtml(row.planta)}</td>
+        <td><span class="badge ${statusClass}">${row.status.label.toUpperCase()}</span></td>
+        <td style="white-space:pre-wrap;overflow-wrap:anywhere">${escapeHtml(row.notes || '—')}</td>
+      </tr>`;
+    }).join('')}
+  </tbody></table>`;
+}
+
+function getMaintenanceCalendarColor(statusKey) {
+  if (statusKey === 'en-proceso') return '#dc2626';
+  if (statusKey === 'finalizado') return '#16a34a';
+  if (statusKey === 'programado') return '#0ea5e9';
+  return '#64748b';
+}
+
+function buildReplMaintenanceCalendarEvents() {
+  return maintenanceSchedule
+    .map(item => {
+      const at = autotanques.find(unit => unit.id === item.atId);
+      if (!at) return null;
+      const status = getMaintenanceStatusByDate(item.maintDate);
+      const color = getMaintenanceCalendarColor(status.key);
+      const title = `${at.econ || '—'} | ${at.placa || '—'}`;
+      return {
+        id: item.id,
+        title,
+        start: item.maintDate,
+        allDay: true,
+        backgroundColor: color,
+        borderColor: color,
+        textColor: '#ffffff',
+        extendedProps: {
+          atId: item.atId,
+          planta: at.plantaActual || 'SIN PLANTA',
+          notes: item.notes || '',
+          statusLabel: status.label
+        }
+      };
+    })
+    .filter(Boolean);
+}
+
+function renderReplMaintenanceCalendar() {
+  const calendarEl = document.getElementById('replMaintenanceCalendar');
+  const emptyEl = document.getElementById('replMaintenanceCalendarEmpty');
+  if (!calendarEl) return;
+
+  const hasFullCalendar = Boolean(window.FullCalendar && window.FullCalendar.Calendar);
+  if (!hasFullCalendar) {
+    if (emptyEl) {
+      emptyEl.style.display = 'block';
+      emptyEl.textContent = 'No se pudo cargar FullCalendar.';
+    }
+    return;
+  }
+
+  const events = buildReplMaintenanceCalendarEvents();
+  if (!maintenanceFullCalendar) {
+    maintenanceFullCalendar = new window.FullCalendar.Calendar(calendarEl, {
+      locale: 'es',
+      initialView: 'dayGridMonth',
+      height: 520,
+      contentHeight: 440,
+      expandRows: true,
+      handleWindowResize: true,
+      headerToolbar: {
+        left: 'prev,next today',
+        center: 'title',
+        right: 'dayGridMonth,timeGridWeek,listMonth'
+      },
+      buttonText: {
+        today: 'Hoy',
+        month: 'Mes',
+        week: 'Semana',
+        list: 'Lista'
+      },
+      dayMaxEventRows: true,
+      dateClick: (info) => {
+        const selectedDate = String(info?.dateStr || '').trim();
+        openMaintenanceModal('', selectedDate);
+      },
+      eventClick: (info) => {
+        const atId = String(info?.event?.extendedProps?.atId || '').trim();
+        const entryId = String(info?.event?.id || '').trim();
+        if (!atId) return;
+        openMaintenanceModal(atId);
+        if (entryId) editMaintenanceEntry(entryId);
+      },
+      events
+    });
+    maintenanceFullCalendar.render();
+    setTimeout(() => maintenanceFullCalendar?.updateSize?.(), 120);
+  } else {
+    maintenanceFullCalendar.removeAllEvents();
+    maintenanceFullCalendar.addEventSource(events);
+    maintenanceFullCalendar.updateSize();
+    setTimeout(() => maintenanceFullCalendar?.updateSize?.(), 80);
+  }
+
+  if (emptyEl) {
+    emptyEl.style.display = events.length ? 'none' : 'block';
+    emptyEl.textContent = events.length ? '' : 'Sin mantenimientos programados.';
   }
 }
 
@@ -2125,7 +2490,10 @@ function switchTab(id) {
   if (id === 'autotanques') renderAutotanques();
   if (id === 'estaciones')  renderEstaciones();
   if (id === 'registro')    renderPartList(); populateATSelect(); populateStationSelectForRegistro(); toggleRegistroTarget(); refreshSelectedPartImageUI();
-  if (id === 'reemplazos')  renderReemplazos();
+  if (id === 'reemplazos')  {
+    renderReemplazos();
+    setTimeout(() => maintenanceFullCalendar?.updateSize?.(), 120);
+  }
   if (id === 'exportar')    renderChangeHistory();
 }
 
@@ -3244,9 +3612,13 @@ async function deleteAutotanque(id) {
   if (!(await deleteAutotanqueRemote(id))) return;
   autotanques = autotanques.filter(a => a.id !== id);
   records     = records.filter(r => r.atId !== id);
+  maintenanceSchedule = maintenanceSchedule.filter(item => item.atId !== id);
   save();
+  persistMaintenanceSchedule();
   populatePlantSelectors();
   renderAutotanques();
+  renderReemplazos();
+  renderDashboard();
 }
 
 function renderAutotanques() {
@@ -3424,9 +3796,12 @@ function renderAutotanquesExpiryMatrix(units = []) {
       <tr>
         <td class="matrix-sticky-col">
           <div class="matrix-actions">
-            <button class="btn btn-secondary matrix-icon-btn" title="Ver" onclick="viewAutotanque('${unit.id}')">👁</button>
-            <button class="btn btn-secondary matrix-icon-btn" title="Editar registro de reemplazo" onclick="openMatrixRecordEditor('${unit.id}')">✏️</button>
-            <button class="btn btn-danger matrix-icon-btn" title="Eliminar registro de reemplazo" onclick="deleteMatrixRecord('${unit.id}')">🗑</button>
+            <div class="matrix-actions-icons">
+              <button class="btn btn-secondary matrix-icon-btn" title="Ver" onclick="viewAutotanque('${unit.id}')">👁</button>
+              <button class="btn btn-secondary matrix-icon-btn" title="Editar registro de reemplazo" onclick="openMatrixRecordEditor('${unit.id}')">✏️</button>
+              <button class="btn btn-danger matrix-icon-btn" title="Eliminar registro de reemplazo" onclick="deleteMatrixRecord('${unit.id}')">🗑</button>
+            </div>
+            <button class="btn btn-secondary matrix-maint-btn" title="Registrar mantenimiento" onclick="openMaintenanceModal('${unit.id}')">Mant.</button>
           </div>
         </td>
         <td class="matrix-meta">${escapeHtml(unit.plantaActual || '—')}</td>
@@ -3558,11 +3933,11 @@ function renderReemplazosExpiryMatrix() {
   const parts = [...PARTS].sort((a, b) => compareTextNatural(a.no, b.no));
   head.innerHTML = `
     <tr>
-      <th class="matrix-sticky-col matrix-fixed-col">Acciones</th>
+      <th class="matrix-sticky-col matrix-fixed-col matrix-col-actions">Acciones</th>
       <th class="matrix-fixed-col">Planta</th>
-      <th class="matrix-fixed-col">Tipo</th>
-      <th class="matrix-fixed-col">NoEco</th>
-      <th class="matrix-fixed-col">Placas</th>
+      <th class="matrix-fixed-col matrix-col-type">Tipo</th>
+      <th class="matrix-fixed-col matrix-col-eco">NoEco</th>
+      <th class="matrix-fixed-col matrix-col-placas">Placas</th>
       <th class="matrix-fixed-col">Capacidad</th>
       <th class="matrix-fixed-col">No. Serie Tanque</th>
       <th class="matrix-fixed-col">Marca</th>
@@ -3587,6 +3962,8 @@ function renderReemplazosExpiryMatrix() {
   if (!units.length) {
     body.innerHTML = `<tr><td class="matrix-sticky-col" colspan="${10 + parts.length}" style="text-align:center;color:var(--muted);padding:20px">Sin autotanques para mostrar con el filtro actual.</td></tr>`;
     syncReemplazosMatrixScroll();
+    renderReplMaintenanceCalendar();
+    requestAnimationFrame(() => maintenanceFullCalendar?.updateSize?.());
     return;
   }
 
@@ -3614,17 +3991,20 @@ function renderReemplazosExpiryMatrix() {
 
     return `
       <tr>
-        <td class="matrix-sticky-col">
+        <td class="matrix-sticky-col matrix-col-actions">
           <div class="matrix-actions">
-            <button class="btn btn-secondary matrix-icon-btn" title="Ver" onclick="viewAutotanque('${unit.id}')">👁</button>
-            <button class="btn btn-secondary matrix-icon-btn" title="Editar registro de reemplazo" onclick="openMatrixRecordEditor('${unit.id}')">✏️</button>
-            <button class="btn btn-danger matrix-icon-btn" title="Eliminar registro de reemplazo" onclick="deleteMatrixRecord('${unit.id}')">🗑</button>
+            <div class="matrix-actions-icons">
+              <button class="btn btn-secondary matrix-icon-btn" title="Ver" onclick="viewAutotanque('${unit.id}')">👁</button>
+              <button class="btn btn-secondary matrix-icon-btn" title="Editar registro de reemplazo" onclick="openMatrixRecordEditor('${unit.id}')">✏️</button>
+              <button class="btn btn-danger matrix-icon-btn" title="Eliminar registro de reemplazo" onclick="deleteMatrixRecord('${unit.id}')">🗑</button>
+            </div>
+            <button class="btn btn-secondary matrix-maint-btn" title="Registrar mantenimiento" onclick="openMaintenanceModal('${unit.id}')">Mant.</button>
           </div>
         </td>
         <td class="matrix-meta">${escapeHtml(unit.plantaActual || '—')}</td>
-        <td class="matrix-meta">AT</td>
-        <td class="matrix-meta">${escapeHtml(unit.econ || '—')}</td>
-        <td class="matrix-meta">${escapeHtml(unit.placa || '—')}</td>
+        <td class="matrix-meta matrix-col-type">AT</td>
+        <td class="matrix-meta matrix-col-eco">${escapeHtml(unit.econ || '—')}</td>
+        <td class="matrix-meta matrix-col-placas">${escapeHtml(unit.placa || '—')}</td>
         <td class="matrix-meta">${escapeHtml(unit.capacidad || '—')}</td>
         <td class="matrix-meta">${escapeHtml(unit.serieTanque || '—')}</td>
         <td class="matrix-meta">${escapeHtml(brand || '—')}</td>
@@ -3636,6 +4016,8 @@ function renderReemplazosExpiryMatrix() {
   }).join('');
 
   syncReemplazosMatrixScroll();
+  renderReplMaintenanceCalendar();
+  requestAnimationFrame(() => maintenanceFullCalendar?.updateSize?.());
 }
 
 function getPreferredRecordForUnit(atId) {
@@ -3862,6 +4244,7 @@ function renderReemplazos() {
   const tbody = document.getElementById('tableReemplazos');
   if (!tbody) {
     renderReemplazosExpiryMatrix();
+    renderReplMaintenanceCalendar();
     return;
   }
   const filterAt     = document.getElementById('filterReplAT')?.value || '';
@@ -4707,6 +5090,10 @@ async function closeModal(id) {
   if (id === 'modalEstacionEdit') {
     editingEstacionId = null;
   }
+  if (id === 'modalMaintenance') {
+    maintenanceEditingAtId = null;
+    maintenanceEditingEntryId = null;
+  }
   document.getElementById(id).classList.remove('open');
 }
 window.addEventListener('click', e => {
@@ -4875,7 +5262,7 @@ function exportChangeHistoryCSV() {
 }
 
 function exportJSON() {
-  const data = { autotanques, records, stationRecords, partImages, changeHistory, exportedAt: new Date().toISOString() };
+  const data = { autotanques, records, stationRecords, partImages, maintenanceSchedule, changeHistory, exportedAt: new Date().toISOString() };
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([JSON.stringify(data,null,2)], {type:'application/json'}));
   a.download = 'respaldo_inventario_NOM007.json';
@@ -5089,6 +5476,7 @@ function handleImport(e) {
       const data = JSON.parse(ev.target.result);
       const hasPartImages = Object.prototype.hasOwnProperty.call(data || {}, 'partImages');
       const hasStationRecords = Object.prototype.hasOwnProperty.call(data || {}, 'stationRecords');
+      const hasMaintenanceSchedule = Object.prototype.hasOwnProperty.call(data || {}, 'maintenanceSchedule');
       const hasChangeHistory = Object.prototype.hasOwnProperty.call(data || {}, 'changeHistory');
       const incomingPartImagesCount = hasPartImages
         ? Object.keys(data.partImages || {}).length
@@ -5106,6 +5494,9 @@ function handleImport(e) {
       autotanques = normalizeAutotanques(data.autotanques || []);
       records     = data.records || [];
       stationRecords = hasStationRecords ? normalizeStationRecords(data.stationRecords || []) : normalizeStationRecords(stationRecords);
+      maintenanceSchedule = hasMaintenanceSchedule
+        ? (Array.isArray(data.maintenanceSchedule) ? data.maintenanceSchedule.map(normalizeMaintenanceEntry).filter(item => item.atId && item.maintDate) : [])
+        : maintenanceSchedule;
       const policySync = applyReplacementPolicyToRecords(records);
       records = policySync.records;
       partImages  = hasPartImages ? normalizePartImages(data.partImages || {}) : normalizePartImages(partImages);
@@ -5126,6 +5517,7 @@ function handleImport(e) {
       const replaceChangeHistoryPayload = hasChangeHistory ? changeHistory : null;
       if (runtimeUseSupabase && !(await replaceRemoteData(autotanques, records, replaceImagesPayload, replaceStationRecordsPayload, replaceChangeHistoryPayload))) return;
       if (!save()) return;
+      persistMaintenanceSchedule();
       populatePlantSelectors();
       renderDashboard();
       renderAutotanques();
