@@ -144,6 +144,21 @@
   border-color: rgba(34,197,94,.35);
 }
 
+.adv-factura-meta {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface2);
+  padding: 10px 12px;
+  font-size: 12px;
+}
+
+#exportInvoiceItemsTable td input,
+#exportInvoiceItemsTable td select {
+  min-height: 32px;
+  font-size: 12px;
+  padding: 6px 8px;
+}
+
 .adv-tec-board {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));

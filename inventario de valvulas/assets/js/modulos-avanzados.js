@@ -1,4 +1,4 @@
-(function advancedModules() {
+﻿(function advancedModules() {
   'use strict';
 
   const REFACCIONES_KEY = 'inv_refacciones';
@@ -20,6 +20,13 @@
   let qrComponentes = readArray(QR_COMPONENTES_KEY).map(normalizeQRItem);
   let bloqueosUnidades = readArray(BLOQUEOS_KEY).map(normalizeBloqueo);
   let auditoriaSistema = readArray(AUDITORIA_KEY).map(normalizeAuditoria);
+  let facturaDraft = {
+    proveedor: '',
+    folio: '',
+    fecha: '',
+    total: 0,
+    items: []
+  };
 
   function readArray(key) {
     try {
@@ -225,7 +232,7 @@
       const { error } = await supabaseClient.from(table).upsert(rows);
       if (error && !isMissingTable(error)) console.warn(`[ADV] Error upsert ${table}`, error);
     } catch (err) {
-      console.warn(`[ADV] Falló sync ${table}`, err);
+      console.warn(`[ADV] FallÃ³ sync ${table}`, err);
     }
   }
 
@@ -293,7 +300,7 @@
 
   function actualizarAvanceMantenimiento(entry) {
     const estado = String(entry?.estado || '').toUpperCase();
-    if (estado === 'LIBERADO') return 100;
+    if (estado === 'LIBERADO' || estado === 'TERMINADO') return 100;
     if (estado === 'ESPERANDO REFACCIONES') return 85;
     if (estado === 'EN MANTENIMIENTO') {
       const start = toDateOnly(entry?.fecha_inicio || '');
@@ -310,7 +317,7 @@
 
   function estadoToBarClass(estado) {
     const value = String(estado || '').toUpperCase();
-    if (value === 'LIBERADO') return 'adv-state-liberado';
+    if (value === 'LIBERADO' || value === 'TERMINADO') return 'adv-state-liberado';
     if (value === 'PROGRAMADO') return 'adv-state-programado';
     if (value === 'EN MANTENIMIENTO') return 'adv-state-en-mantenimiento';
     if (value === 'ESPERANDO REFACCIONES') return 'adv-state-esperando-refacciones';
@@ -319,7 +326,7 @@
 
   function stateLabelClass(stock, min) {
     if (stock <= 0) return { text: 'PIEZA AGOTADA', cls: 'adv-status-danger' };
-    if (stock < min) return { text: 'STOCK CRÍTICO', cls: 'adv-status-danger' };
+    if (stock < min) return { text: 'STOCK CRÃTICO', cls: 'adv-status-danger' };
     if (stock === min) return { text: 'STOCK BAJO', cls: 'adv-status-warn' };
     return { text: 'OPERABLE', cls: 'adv-status-ok' };
   }
@@ -349,7 +356,7 @@
       rows.forEach(b => {
         if (a.id === b.id || a.unidad_id !== b.unidad_id) return;
         if (a.fecha_inicio <= b.fecha_fin && b.fecha_inicio <= a.fecha_fin) {
-          conflicts.push(`${a.economico}: ${a.fecha_inicio} ↔ ${b.fecha_fin}`);
+          conflicts.push(`${a.economico}: ${a.fecha_inicio} â†” ${b.fecha_fin}`);
         }
       });
     });
@@ -371,7 +378,7 @@
     if (!container) return;
 
     const header = [
-      '<div class="adv-gantt-cell header adv-gantt-row-head">UNIDAD | PLANTA | TÉCNICO | INICIO | FIN | ESTADO | AVANCE</div>'
+      '<div class="adv-gantt-cell header adv-gantt-row-head">UNIDAD | PLANTA | TÃ‰CNICO | INICIO | FIN | ESTADO | AVANCE</div>'
     ];
     for (let w = 1; w <= 52; w++) {
       header.push(`<div class="adv-gantt-cell header">S${w}</div>`);
@@ -384,7 +391,7 @@
       const startWeek = weekOfYear(new Date(`${row.fecha_inicio}T00:00:00`));
       const endWeek = weekOfYear(new Date(`${row.fecha_fin}T00:00:00`));
       const avance = actualizarAvanceMantenimiento(row);
-      const head = `<div class="adv-gantt-cell adv-gantt-row-head">${safeText(row.economico)} | ${safeText(row.planta || 'SIN PLANTA')} | ${safeText(row.tecnico || 'SIN TÉCNICO')} | ${safeText(typeof formatDate === 'function' ? formatDate(row.fecha_inicio) : row.fecha_inicio)} | ${safeText(typeof formatDate === 'function' ? formatDate(row.fecha_fin) : row.fecha_fin)} | ${safeText(row.estado)} | ${avance}%</div>`;
+      const head = `<div class="adv-gantt-cell adv-gantt-row-head">${safeText(row.economico)} | ${safeText(row.planta || 'SIN PLANTA')} | ${safeText(row.tecnico || 'SIN TÃ‰CNICO')} | ${safeText(typeof formatDate === 'function' ? formatDate(row.fecha_inicio) : row.fecha_inicio)} | ${safeText(typeof formatDate === 'function' ? formatDate(row.fecha_fin) : row.fecha_fin)} | ${safeText(row.estado)} | ${avance}%</div>`;
       const cols = [];
       for (let w = 1; w <= 52; w++) {
         if (w >= startWeek && w <= endWeek) {
@@ -403,7 +410,7 @@
     const select = document.getElementById('movRefaccionId');
     if (!select) return;
     const prev = select.value || '';
-    select.innerHTML = '<option value="">— Seleccionar refacción —</option>' +
+    select.innerHTML = '<option value="">â€” Seleccionar refacciÃ³n â€”</option>' +
       refacciones.map(item => `<option value="${safeText(item.id)}">${safeText(item.nombre)} | ${safeText(item.numero_parte)}</option>`).join('');
     if (prev && refacciones.some(item => item.id === prev)) select.value = prev;
   }
@@ -423,7 +430,7 @@
       created_at: nowIso()
     });
     if (!payload.nombre || !payload.numero_parte) {
-      alert('Nombre y número de parte son obligatorios.');
+      alert('Nombre y nÃºmero de parte son obligatorios.');
       return;
     }
 
@@ -437,10 +444,10 @@
       exists.proveedor = payload.proveedor;
       exists.costo = payload.costo;
       exists.categoria = payload.categoria;
-      logAuditoria('INVENTARIO REFACCIONES', 'ACTUALIZAR', `Refacción actualizada: ${exists.nombre}`, '', '');
+      logAuditoria('INVENTARIO REFACCIONES', 'ACTUALIZAR', `RefacciÃ³n actualizada: ${exists.nombre}`, '', '');
     } else {
       refacciones.push(payload);
-      logAuditoria('INVENTARIO REFACCIONES', 'CREAR', `Refacción registrada: ${payload.nombre}`, '', '');
+      logAuditoria('INVENTARIO REFACCIONES', 'CREAR', `RefacciÃ³n registrada: ${payload.nombre}`, '', '');
     }
     persistAll();
     upsertSupabase(TABLE_REFACCIONES, refacciones);
@@ -471,7 +478,7 @@
     const observaciones = String(document.getElementById('movObservaciones')?.value || '').trim();
 
     const ref = refacciones.find(item => item.id === refaccionId);
-    if (!ref) return alert('Selecciona una refacción.');
+    if (!ref) return alert('Selecciona una refacciÃ³n.');
     if (tipo === 'SALIDA' && !validarStockDisponible(refaccionId, cantidad)) {
       alert('No hay stock suficiente para la salida solicitada.');
       return;
@@ -512,14 +519,14 @@
         unidad,
         tecnico,
         fecha: nowIso(),
-        observaciones: 'Descuento automático por finalización de mantenimiento'
+        observaciones: 'Descuento automÃ¡tico por finalizaciÃ³n de mantenimiento'
       });
       movimientosInventario.unshift(mov);
       upsertSupabase(TABLE_MOVIMIENTOS, [mov]);
     });
     persistAll();
     upsertSupabase(TABLE_REFACCIONES, impacted);
-    logAuditoria('INVENTARIO REFACCIONES', 'SALIDA AUTOMÁTICA', 'Descuento automático de refacciones al finalizar mantenimiento', unidad, '');
+    logAuditoria('INVENTARIO REFACCIONES', 'SALIDA AUTOMÃTICA', 'Descuento automÃ¡tico de refacciones al finalizar mantenimiento', unidad, '');
   }
 
   function generarAlertaInventario() {
@@ -568,10 +575,10 @@
           return `<tr>
             <td>${safeText(typeof formatDateTime === 'function' ? formatDateTime(mov.fecha) : mov.fecha)}</td>
             <td>${safeText(mov.tipo_movimiento)}</td>
-            <td>${safeText(ref?.nombre || 'Refacción eliminada')}</td>
+            <td>${safeText(ref?.nombre || 'RefacciÃ³n eliminada')}</td>
             <td>${mov.cantidad}</td>
-            <td>${safeText(mov.unidad || '—')}</td>
-            <td>${safeText(mov.tecnico || '—')}</td>
+            <td>${safeText(mov.unidad || 'â€”')}</td>
+            <td>${safeText(mov.tecnico || 'â€”')}</td>
           </tr>`;
         }).join('')
       : '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:20px">Sin movimientos de inventario.</td></tr>';
@@ -592,6 +599,332 @@
     setKpi('invKpiConsumo', String(kpis.consumoMensual));
   }
 
+  function normalizeLooseNumber(value) {
+    const raw = String(value || '').trim();
+    if (!raw) return 0;
+    const cleaned = raw.replace(/[^0-9,.-]/g, '');
+    if (!cleaned) return 0;
+    const normalized = cleaned.includes(',') && cleaned.includes('.')
+      ? cleaned.replace(/,/g, '')
+      : cleaned.replace(',', '.');
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  function normalizeForMatch(value) {
+    return String(value || '')
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/g, ' ')
+      .trim();
+  }
+
+  function getFacturaTextInput() {
+    const txt = String(document.getElementById('exportInvoiceText')?.value || '').trim();
+    if (txt) return Promise.resolve(txt);
+    const file = document.getElementById('exportInvoiceFile')?.files?.[0];
+    if (!file) return Promise.resolve('');
+    const ext = String(file.name || '').toLowerCase();
+    const isText = ext.endsWith('.txt') || ext.endsWith('.csv') || ext.endsWith('.json') || ext.endsWith('.xml');
+    if (!isText) return Promise.resolve('');
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ''));
+      reader.onerror = () => resolve('');
+      reader.readAsText(file);
+    });
+  }
+
+  function detectFacturaMeta(text) {
+    const src = String(text || '');
+    const proveedorMatch = src.match(/(?:proveedor|vendor|razon social)\s*[:\-]\s*(.+)/i);
+    const folioMatch = src.match(/(?:folio|factura|invoice|uuid)\s*[:#\-]\s*([a-z0-9\-]+)/i);
+    const fechaMatch = src.match(/(\d{2}\/\d{2}\/\d{4}|\d{4}-\d{2}-\d{2})/);
+    const totalMatch = src.match(/(?:total)\s*[:\$ ]+\s*([\d.,]+)/i);
+    return {
+      proveedor: proveedorMatch ? proveedorMatch[1].split('\n')[0].trim() : '',
+      folio: folioMatch ? folioMatch[1].trim() : '',
+      fecha: fechaMatch ? toDateOnly(fechaMatch[1]) : '',
+      total: totalMatch ? normalizeLooseNumber(totalMatch[1]) : 0
+    };
+  }
+
+  function suggestRefaccionIdByDescription(desc) {
+    const needle = normalizeForMatch(desc);
+    if (!needle) return '';
+    let winner = '';
+    let bestScore = 0;
+    refacciones.forEach(item => {
+      const bag = [
+        item.nombre,
+        item.numero_parte,
+        item.marca,
+        item.categoria
+      ].map(normalizeForMatch).join(' ');
+      if (!bag) return;
+      let score = 0;
+      const tokens = needle.split(' ').filter(Boolean);
+      tokens.forEach(token => {
+        if (token.length > 2 && bag.includes(token)) score += 1;
+      });
+      if (bag.includes(needle)) score += 3;
+      if (score > bestScore) {
+        bestScore = score;
+        winner = item.id;
+      }
+    });
+    return bestScore > 0 ? winner : '';
+  }
+
+  function parseFacturaItems(text) {
+    const compactText = String(text || '')
+      .replace(/\t/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    let lines = String(text || '')
+      .split(/\r?\n/)
+      .map(line => line.trim())
+      .filter(Boolean);
+
+    if (lines.length <= 1 && compactText) {
+      lines = compactText
+        .split(/(?=\b\d+\s+[A-Z]{1,4}-[A-Z0-9]+:)/g)
+        .map(line => line.trim())
+        .filter(Boolean);
+      if (!lines.length) lines = [compactText];
+    }
+
+    const sanitizeDesc = (value) => String(value || '')
+      .replace(/^\d+\s+[A-Z]{1,4}-[A-Z0-9]+:\s*/i, '')
+      .replace(/^(?:\d+(?:[.,]\d+)?%?\s+)+/i, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    const items = [];
+    lines.forEach(line => {
+      const compact = line.replace(/\s+/g, ' ');
+
+      let match = compact.match(/^(\d+(?:[.,]\d+)?)\s*[xX]\s+(.+?)\s+([\d.,]+)$/);
+      if (match) {
+        const qty = Math.max(1, Math.round(normalizeLooseNumber(match[1])));
+        const desc = sanitizeDesc(match[2]);
+        const amount = normalizeLooseNumber(match[3]);
+        const unit = qty > 0 ? (amount / qty) : amount;
+        items.push({
+          id: genLocalId(),
+          descripcion: desc,
+          refaccion_id: suggestRefaccionIdByDescription(desc),
+          cantidad: qty,
+          costo_unitario: unit > 0 ? unit : 0
+        });
+        return;
+      }
+
+      match = compact.match(/^(.+?)\s+(\d+(?:[.,]\d+)?)\s+([\d.,]+)\s+([\d.,]+)$/);
+      if (match) {
+        const desc = sanitizeDesc(match[1]);
+        const qty = Math.max(1, Math.round(normalizeLooseNumber(match[2])));
+        const unit = normalizeLooseNumber(match[3]);
+        items.push({
+          id: genLocalId(),
+          descripcion: desc,
+          refaccion_id: suggestRefaccionIdByDescription(desc),
+          cantidad: qty,
+          costo_unitario: unit > 0 ? unit : 0
+        });
+        return;
+      }
+
+      match = compact.match(/^(.+?)\s+(\d+(?:[.,]\d+)?)\s*PZA\b\s+([\d.,]+)/i);
+      if (match) {
+        const desc = sanitizeDesc(match[1]);
+        const qty = Math.max(1, Math.round(normalizeLooseNumber(match[2])));
+        const unit = normalizeLooseNumber(match[3]);
+        items.push({
+          id: genLocalId(),
+          descripcion: desc,
+          refaccion_id: suggestRefaccionIdByDescription(desc),
+          cantidad: qty,
+          costo_unitario: unit > 0 ? unit : 0
+        });
+      }
+    });
+    return items;
+  }
+  function renderFacturaMeta() {
+    const wrap = document.getElementById('exportInvoiceMeta');
+    if (!wrap) return;
+    if (!facturaDraft.items.length) {
+      wrap.innerHTML = '<p class="text-muted" style="margin:0">Sin factura procesada.</p>';
+      return;
+    }
+    wrap.innerHTML = `
+      <div><b>Proveedor:</b> ${safeText(facturaDraft.proveedor || 'â€”')}</div>
+      <div><b>Folio:</b> ${safeText(facturaDraft.folio || 'â€”')} | <b>Fecha:</b> ${safeText(facturaDraft.fecha || 'â€”')} | <b>Total detectado:</b> $${Number(facturaDraft.total || 0).toFixed(2)}</div>
+      <div class="text-muted" style="margin-top:4px">Confirma los renglones antes de aplicar.</div>
+    `;
+  }
+
+  function renderFacturaItems() {
+    const tbody = document.getElementById('exportInvoiceItemsBody');
+    if (!tbody) return;
+    if (!facturaDraft.items.length) {
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:20px">Sin renglones detectados.</td></tr>';
+      return;
+    }
+    const options = '<option value="">â€” Seleccionar â€”</option>' + refacciones
+      .map(item => `<option value="${safeText(item.id)}">${safeText(item.nombre)} | ${safeText(item.numero_parte)}</option>`)
+      .join('');
+
+    tbody.innerHTML = facturaDraft.items.map((row, idx) => {
+      const importe = Number(row.cantidad || 0) * Number(row.costo_unitario || 0);
+      return `
+        <tr>
+          <td><input type="text" value="${safeText(row.descripcion)}" onchange="actualizarItemFacturaRefacciones(${idx}, 'descripcion', this.value)"></td>
+          <td><select onchange="actualizarItemFacturaRefacciones(${idx}, 'refaccion_id', this.value)">${options}</select></td>
+          <td><input type="number" min="1" value="${Number(row.cantidad || 1)}" onchange="actualizarItemFacturaRefacciones(${idx}, 'cantidad', this.value)"></td>
+          <td><input type="number" min="0" step="0.01" value="${Number(row.costo_unitario || 0).toFixed(2)}" onchange="actualizarItemFacturaRefacciones(${idx}, 'costo_unitario', this.value)"></td>
+          <td>$${importe.toFixed(2)}</td>
+        </tr>
+      `;
+    }).join('');
+
+    facturaDraft.items.forEach((row, idx) => {
+      const select = tbody.querySelectorAll('select')[idx];
+      if (select) select.value = row.refaccion_id || '';
+    });
+  }
+
+  async function procesarFacturaRefacciones() {
+    const text = await getFacturaTextInput();
+    const file = document.getElementById('exportInvoiceFile')?.files?.[0];
+    const fileName = String(file?.name || '').toLowerCase();
+    const isTextFile = /\.(txt|csv|json|xml)$/i.test(fileName);
+    if (!text) {
+      if (file && !isTextFile) {
+        facturaDraft = {
+          proveedor: '',
+          folio: file?.name || '',
+          fecha: toDateOnly(file?.lastModified ? new Date(file.lastModified).toISOString() : todayIso()),
+          total: 0,
+          items: [{
+            id: genLocalId(),
+            descripcion: '',
+            refaccion_id: '',
+            cantidad: 1,
+            costo_unitario: 0
+          }]
+        };
+        renderFacturaMeta();
+        renderFacturaItems();
+        alert('El archivo no trae texto extraible en navegador. Ya puedes capturar manualmente el renglon o pegar OCR y volver a procesar.');
+        return;
+      }
+      alert('Sube una factura de texto/CSV/XML o pega texto OCR para procesar.');
+      return;
+    }
+    const meta = detectFacturaMeta(text);
+    let items = parseFacturaItems(text);
+    if (!items.length) {
+      items = [{
+        id: genLocalId(),
+        descripcion: String(text || '').replace(/\s+/g, ' ').trim().slice(0, 180),
+        refaccion_id: '',
+        cantidad: 1,
+        costo_unitario: 0
+      }];
+    }
+    facturaDraft = {
+      proveedor: meta.proveedor,
+      folio: meta.folio,
+      fecha: meta.fecha,
+      total: meta.total,
+      items
+    };
+    renderFacturaMeta();
+    renderFacturaItems();
+    if (items.length === 1 && !items[0].refaccion_id && Number(items[0].costo_unitario || 0) === 0) {
+      alert('Se cargo en modo asistido. Asigna refaccion, cantidad y costo antes de aplicar.');
+    }
+  }
+  function agregarRenglonFacturaRefacciones() {
+    facturaDraft.items.push({
+      id: genLocalId(),
+      descripcion: '',
+      refaccion_id: '',
+      cantidad: 1,
+      costo_unitario: 0
+    });
+    renderFacturaMeta();
+    renderFacturaItems();
+  }
+
+  function actualizarItemFacturaRefacciones(index, field, value) {
+    const row = facturaDraft.items[index];
+    if (!row) return;
+    if (field === 'cantidad') row.cantidad = Math.max(1, Math.round(Number(value || 1)));
+    else if (field === 'costo_unitario') row.costo_unitario = Math.max(0, Number(value || 0));
+    else row[field] = String(value || '').trim();
+    renderFacturaItems();
+  }
+
+  function limpiarFacturaRefacciones() {
+    facturaDraft = { proveedor: '', folio: '', fecha: '', total: 0, items: [] };
+    const fileEl = document.getElementById('exportInvoiceFile');
+    const txtEl = document.getElementById('exportInvoiceText');
+    if (fileEl) fileEl.value = '';
+    if (txtEl) txtEl.value = '';
+    renderFacturaMeta();
+    renderFacturaItems();
+  }
+
+  function aplicarFacturaRefacciones() {
+    if (!facturaDraft.items.length) {
+      alert('No hay renglones para aplicar.');
+      return;
+    }
+    const validRows = facturaDraft.items.filter(item =>
+      item.refaccion_id && Number(item.cantidad || 0) > 0
+    );
+    if (!validRows.length) {
+      alert('Asigna una refacciÃ³n y cantidad vÃ¡lida al menos en un renglÃ³n.');
+      return;
+    }
+
+    const folio = String(facturaDraft.folio || '').trim();
+    const proveedor = String(facturaDraft.proveedor || '').trim();
+    const referencia = [folio ? `Folio ${folio}` : '', proveedor ? `Prov. ${proveedor}` : ''].filter(Boolean).join(' | ');
+
+    validRows.forEach(item => {
+      const ref = refacciones.find(r => r.id === item.refaccion_id);
+      if (!ref) return;
+      ref.stock_actual += Number(item.cantidad || 0);
+      if (Number(item.costo_unitario || 0) > 0) {
+        ref.costo = Number(item.costo_unitario || 0);
+      }
+      const mov = normalizeMovimiento({
+        id: genLocalId(),
+        refaccion_id: ref.id,
+        tipo_movimiento: 'ENTRADA',
+        cantidad: Number(item.cantidad || 0),
+        unidad: 'FACTURA',
+        tecnico: getCurrentUser(),
+        fecha: nowIso(),
+        observaciones: `Entrada por factura${referencia ? ` | ${referencia}` : ''} | ${item.descripcion || ref.nombre}`
+      });
+      movimientosInventario.unshift(mov);
+      upsertSupabase(TABLE_MOVIMIENTOS, [mov]);
+    });
+
+    persistAll();
+    upsertSupabase(TABLE_REFACCIONES, refacciones);
+    logAuditoria('INVENTARIO REFACCIONES', 'ENTRADA FACTURA', `Entrada automÃ¡tica por factura (${validRows.length} renglÃ³n/renglones)`, '', '');
+    renderInventarioRefacciones();
+    limpiarFacturaRefacciones();
+    alert('Factura aplicada al inventario correctamente.');
+  }
+
   function getTechName() {
     return String(document.getElementById('tecActivoNombre')?.value || '').trim();
   }
@@ -609,14 +942,14 @@
     if (idx < 0) return;
     schedule[idx].tecnico = String(tecnico || '').trim();
     writeArray('at_programacion_mantenimiento', schedule);
-    logAuditoria('TÉCNICOS', 'ASIGNAR', `Técnico ${tecnico} asignado a ${schedule[idx].economico}`, schedule[idx].economico, '');
+    logAuditoria('TÃ‰CNICOS', 'ASIGNAR', `TÃ©cnico ${tecnico} asignado a ${schedule[idx].economico}`, schedule[idx].economico, '');
   }
 
   async function iniciarMantenimientoMovil(entryId) {
     if (window.accionProgramacionMantenimiento) {
       await window.accionProgramacionMantenimiento(entryId, 'INICIAR');
     }
-    logAuditoria('TÉCNICOS', 'INICIAR', 'Mantenimiento iniciado desde app móvil', '', '');
+    logAuditoria('TÃ‰CNICOS', 'INICIAR', 'Mantenimiento iniciado desde app mÃ³vil', '', '');
     renderTecnicosMovil();
   }
 
@@ -625,8 +958,8 @@
       await window.accionProgramacionMantenimiento(entryId, 'FINALIZAR');
     }
     const row = maintenanceRows().find(item => item.id === entryId);
-    descontarRefaccionesAutomaticamente(row?.economico || '', getTechName() || 'Técnico móvil');
-    logAuditoria('TÉCNICOS', 'FINALIZAR', 'Mantenimiento finalizado desde app móvil', row?.economico || '', '');
+    descontarRefaccionesAutomaticamente(row?.economico || '', getTechName() || 'TÃ©cnico mÃ³vil');
+    logAuditoria('TÃ‰CNICOS', 'FINALIZAR', 'Mantenimiento finalizado desde app mÃ³vil', row?.economico || '', '');
     renderTecnicosMovil();
     renderInventarioRefacciones();
   }
@@ -677,7 +1010,7 @@
     }
     evidenciasMovil = [...payloads, ...evidenciasMovil].slice(0, 1000);
     writeArray(EVIDENCIAS_MOVIL_KEY, evidenciasMovil);
-    logAuditoria('TÉCNICOS', 'SUBIR EVIDENCIA', `${payloads.length} evidencia(s) móvil(es)`, unidad, payloads.map(p => p.id).join(','));
+    logAuditoria('TÃ‰CNICOS', 'SUBIR EVIDENCIA', `${payloads.length} evidencia(s) mÃ³vil(es)`, unidad, payloads.map(p => p.id).join(','));
     renderTecnicosMovil();
   }
 
@@ -708,14 +1041,14 @@
         <div class="adv-tec-card">
           <div class="adv-tec-title">${safeText(row.economico)} | ${safeText(row.planta || 'SIN PLANTA')}</div>
           <div style="font-size:12px;margin-bottom:8px">Estado: <b>${safeText(row.estado)}</b></div>
-          <div style="font-size:12px;margin-bottom:10px">Técnico: <input type="text" value="${safeText(row.tecnico || '')}" onchange="asignarTecnico('${safeText(row.id)}', this.value)"></div>
+          <div style="font-size:12px;margin-bottom:10px">TÃ©cnico: <input type="text" value="${safeText(row.tecnico || '')}" onchange="asignarTecnico('${safeText(row.id)}', this.value)"></div>
           <div class="flex-gap">
             <button class="btn btn-secondary" type="button" onclick="iniciarMantenimientoMovil('${safeText(row.id)}')">INICIAR</button>
             <button class="btn btn-secondary" type="button" onclick="finalizarMantenimientoMovil('${safeText(row.id)}')">FINALIZAR</button>
           </div>
         </div>
       `).join('')
-      : '<p class="text-muted">Sin mantenimientos para el técnico seleccionado.</p>';
+      : '<p class="text-muted">Sin mantenimientos para el tÃ©cnico seleccionado.</p>';
     renderEvidenciasMovil();
   }
 
@@ -764,7 +1097,7 @@
 
   function imprimirQR(qrId) {
     const qr = qrComponentes.find(item => item.id === qrId);
-    if (!qr) return alert('No se encontró QR.');
+    if (!qr) return alert('No se encontrÃ³ QR.');
     const popup = window.open('', '_blank', 'width=420,height=540');
     if (!popup) return alert('Permite ventanas emergentes para imprimir QR.');
     popup.document.write(`<!doctype html><html><head><title>QR ${safeText(qr.economico)}</title><style>
@@ -778,8 +1111,8 @@
         <img src="${safeText(qr.qr_url)}" alt="QR">
         <div class="meta">
           <b>Componente:</b> ${safeText(qr.componente)}<br>
-          <b>Serie:</b> ${safeText(qr.serie || '—')}<br>
-          <b>Instalación:</b> ${safeText(typeof formatDate === 'function' ? formatDate(qr.fecha_instalacion) : qr.fecha_instalacion)}<br>
+          <b>Serie:</b> ${safeText(qr.serie || 'â€”')}<br>
+          <b>InstalaciÃ³n:</b> ${safeText(typeof formatDate === 'function' ? formatDate(qr.fecha_instalacion) : qr.fecha_instalacion)}<br>
           <b>Reemplazo:</b> ${safeText(typeof formatDate === 'function' ? formatDate(qr.fecha_reemplazo) : qr.fecha_reemplazo)}
         </div>
       </div>
@@ -813,7 +1146,7 @@
       const detector = new window.BarcodeDetector({ formats: ['qr_code'] });
       const detections = await detector.detect(canvas);
       if (!detections.length) {
-        resultEl.innerHTML = '<p class="text-muted">No se detectó QR en la captura.</p>';
+        resultEl.innerHTML = '<p class="text-muted">No se detectÃ³ QR en la captura.</p>';
         return;
       }
       const qrText = String(detections[0].rawValue || '').trim();
@@ -849,22 +1182,22 @@
     }
     const rec = (Array.isArray(records) ? records : []).find(item => item.id === parsed.record_id);
     if (!rec) {
-      openModalLike('Historial QR', '<p class="text-muted">No se encontró el componente en historial local.</p>');
+      openModalLike('Historial QR', '<p class="text-muted">No se encontrÃ³ el componente en historial local.</p>');
       return;
     }
     const at = (Array.isArray(autotanques) ? autotanques : []).find(item => item.id === rec.atId);
     openModalLike(
       `Historial QR - ${parsed.autotanque || at?.econ || 'Unidad'}`,
       `<div class="grid-2">
-        <div class="detail-row"><span class="detail-key">AUTOTANQUE:</span><span class="detail-val">${safeText(parsed.autotanque || at?.econ || '—')}</span></div>
-        <div class="detail-row"><span class="detail-key">COMPONENTE:</span><span class="detail-val">${safeText(parsed.componente || '—')}</span></div>
-        <div class="detail-row"><span class="detail-key">SERIE:</span><span class="detail-val">${safeText(parsed.serie || '—')}</span></div>
-        <div class="detail-row"><span class="detail-key">INSTALACIÓN:</span><span class="detail-val">${safeText(typeof formatDate === 'function' ? formatDate(parsed.fecha_instalacion) : parsed.fecha_instalacion || '—')}</span></div>
-        <div class="detail-row"><span class="detail-key">REEMPLAZO:</span><span class="detail-val">${safeText(typeof formatDate === 'function' ? formatDate(parsed.fecha_reemplazo) : parsed.fecha_reemplazo || '—')}</span></div>
-        <div class="detail-row"><span class="detail-key">ESTADO:</span><span class="detail-val">${safeText(parsed.estado || '—')}</span></div>
+        <div class="detail-row"><span class="detail-key">AUTOTANQUE:</span><span class="detail-val">${safeText(parsed.autotanque || at?.econ || 'â€”')}</span></div>
+        <div class="detail-row"><span class="detail-key">COMPONENTE:</span><span class="detail-val">${safeText(parsed.componente || 'â€”')}</span></div>
+        <div class="detail-row"><span class="detail-key">SERIE:</span><span class="detail-val">${safeText(parsed.serie || 'â€”')}</span></div>
+        <div class="detail-row"><span class="detail-key">INSTALACIÃ“N:</span><span class="detail-val">${safeText(typeof formatDate === 'function' ? formatDate(parsed.fecha_instalacion) : parsed.fecha_instalacion || 'â€”')}</span></div>
+        <div class="detail-row"><span class="detail-key">REEMPLAZO:</span><span class="detail-val">${safeText(typeof formatDate === 'function' ? formatDate(parsed.fecha_reemplazo) : parsed.fecha_reemplazo || 'â€”')}</span></div>
+        <div class="detail-row"><span class="detail-key">ESTADO:</span><span class="detail-val">${safeText(parsed.estado || 'â€”')}</span></div>
       </div>
       <div class="section-sep"></div>
-      <div class="detail-row"><span class="detail-key">NOTAS:</span><span class="detail-val">${safeText(rec.notes || '—')}</span></div>`
+      <div class="detail-row"><span class="detail-key">NOTAS:</span><span class="detail-val">${safeText(rec.notes || 'â€”')}</span></div>`
     );
   }
 
@@ -879,12 +1212,12 @@
     tbody.innerHTML = rows.length
       ? rows.map(item => `
         <tr>
-          <td>${safeText(item.economico || '—')}</td>
-          <td>${safeText(item.componente || '—')}</td>
-          <td>${safeText(item.serie || '—')}</td>
-          <td>${safeText(typeof formatDate === 'function' ? formatDate(item.fecha_instalacion) : item.fecha_instalacion || '—')}</td>
-          <td>${safeText(typeof formatDate === 'function' ? formatDate(item.fecha_reemplazo) : item.fecha_reemplazo || '—')}</td>
-          <td>${safeText(item.estado || '—')}</td>
+          <td>${safeText(item.economico || 'â€”')}</td>
+          <td>${safeText(item.componente || 'â€”')}</td>
+          <td>${safeText(item.serie || 'â€”')}</td>
+          <td>${safeText(typeof formatDate === 'function' ? formatDate(item.fecha_instalacion) : item.fecha_instalacion || 'â€”')}</td>
+          <td>${safeText(typeof formatDate === 'function' ? formatDate(item.fecha_reemplazo) : item.fecha_reemplazo || 'â€”')}</td>
+          <td>${safeText(item.estado || 'â€”')}</td>
           <td><img class="adv-qr-preview" src="${safeText(item.qr_url)}" alt="QR"></td>
           <td>
             <div class="flex-gap">
@@ -900,7 +1233,7 @@
 
   function abrirHistorialQRPorId(qrId) {
     const qr = qrComponentes.find(item => item.id === qrId);
-    if (!qr) return alert('No se encontró QR.');
+    if (!qr) return alert('No se encontrÃ³ QR.');
     abrirHistorialQR(qr.payload);
   }
 
@@ -939,8 +1272,8 @@
 
       if (criticalValveExpired || multipleCritical || maintenanceOverdue || riskOver80 || leak) {
         const motivo = [
-          criticalValveExpired ? 'Válvula crítica vencida' : '',
-          multipleCritical ? 'Múltiples componentes críticos' : '',
+          criticalValveExpired ? 'VÃ¡lvula crÃ­tica vencida' : '',
+          multipleCritical ? 'MÃºltiples componentes crÃ­ticos' : '',
           maintenanceOverdue ? 'Mantenimiento vencido' : '',
           riskOver80 ? 'Riesgo operativo > 80' : '',
           leak ? 'Fuga reportada' : ''
@@ -1000,7 +1333,7 @@
   function liberarUnidad(unidadId) {
     const at = (Array.isArray(autotanques) ? autotanques : []).find(item => item.id === unidadId);
     if (!at) return;
-    const token = prompt('Autorización requerida. Escribe AUTORIZAR-LIBERACION');
+    const token = prompt('AutorizaciÃ³n requerida. Escribe AUTORIZAR-LIBERACION');
     if (token !== 'AUTORIZAR-LIBERACION') {
       alert('No autorizado.');
       return;
@@ -1013,7 +1346,7 @@
     );
     saveProgramacionRows(schedule);
     persistAll();
-    logAuditoria('BLOQUEOS', 'LIBERAR', 'Unidad liberada manualmente con autorización', at.econ, '');
+    logAuditoria('BLOQUEOS', 'LIBERAR', 'Unidad liberada manualmente con autorizaciÃ³n', at.econ, '');
     renderBloqueos();
   }
 
@@ -1023,8 +1356,8 @@
     tbody.innerHTML = bloqueosUnidades.length
       ? bloqueosUnidades.map(item => `
         <tr>
-          <td>${safeText(item.economico || '—')}</td>
-          <td>${safeText(item.motivo || '—')}</td>
+          <td>${safeText(item.economico || 'â€”')}</td>
+          <td>${safeText(item.motivo || 'â€”')}</td>
           <td>${safeText(typeof formatDateTime === 'function' ? formatDateTime(item.fecha_bloqueo) : item.fecha_bloqueo)}</td>
           <td>${safeText(item.responsable || 'Sistema')}</td>
           <td><span class="adv-status-tag adv-status-danger">FUERA DE SERVICIO</span></td>
@@ -1049,11 +1382,11 @@
           <td>${safeText(item.usuario)}</td>
           <td>${safeText(item.modulo)}</td>
           <td>${safeText(item.accion)}</td>
-          <td>${safeText(item.unidad || '—')}</td>
+          <td>${safeText(item.unidad || 'â€”')}</td>
           <td style="white-space:pre-wrap;overflow-wrap:anywhere">${safeText(item.descripcion)}</td>
         </tr>
       `).join('')
-      : '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:20px">Sin eventos de auditoría.</td></tr>';
+      : '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:20px">Sin eventos de auditorÃ­a.</td></tr>';
   }
 
 function patchProgramacionActions() {
@@ -1121,6 +1454,8 @@ function patchProgramacionActions() {
     }
     renderCronogramaGantt();
     renderInventarioRefacciones();
+    renderFacturaMeta();
+    renderFacturaItems();
   }
 
   document.addEventListener('DOMContentLoaded', () => {
@@ -1145,4 +1480,11 @@ function patchProgramacionActions() {
   window.validarStockDisponible = validarStockDisponible;
   window.generarAlertaInventario = generarAlertaInventario;
   window.renderInventarioRefacciones = renderInventarioRefacciones;
+  window.procesarFacturaRefacciones = procesarFacturaRefacciones;
+  window.agregarRenglonFacturaRefacciones = agregarRenglonFacturaRefacciones;
+  window.actualizarItemFacturaRefacciones = actualizarItemFacturaRefacciones;
+  window.aplicarFacturaRefacciones = aplicarFacturaRefacciones;
+  window.limpiarFacturaRefacciones = limpiarFacturaRefacciones;
 })();
+
+

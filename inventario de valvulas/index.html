@@ -499,6 +499,7 @@
             <option value="PROGRAMADO">Programado</option>
             <option value="EN MANTENIMIENTO">En mantenimiento</option>
             <option value="ESPERANDO REFACCIONES">Esperando refacciones</option>
+            <option value="TERMINADO">Terminado</option>
             <option value="LIBERADO">Liberado</option>
             <option value="FUERA DE SERVICIO">Fuera de servicio</option>
           </select>
@@ -673,6 +674,49 @@
             <tr>
               <td colspan="3" style="text-align:center;color:var(--muted);padding:20px">Sin cambios registrados.</td>
             </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card mt-16">
+      <div class="card-title">CAPTURA DE FACTURA REFACCIONES (ASISTIDA)</div>
+      <p class="text-muted" style="margin-bottom:12px">
+        Sube la factura y/o pega el texto OCR. El sistema propone entradas de inventario para confirmar antes de aplicar.
+      </p>
+      <div class="grid-2" style="gap:12px;align-items:start">
+        <div>
+          <label>ARCHIVO FACTURA</label>
+          <input type="file" id="exportInvoiceFile" accept=".txt,.csv,.json,.xml,.pdf,.jpg,.jpeg,.png,.webp">
+          <p class="text-muted mt-12">Para PDF/imagen, si el navegador no extrae texto, pega el OCR en el campo de la derecha.</p>
+        </div>
+        <div>
+          <label>TEXTO OCR / CONTENIDO FACTURA</label>
+          <textarea id="exportInvoiceText" rows="7" placeholder="Pega aquí el texto de la factura..."></textarea>
+        </div>
+      </div>
+      <div class="flex-gap mt-12">
+        <button class="btn btn-secondary" type="button" onclick="procesarFacturaRefacciones()">PROCESAR FACTURA</button>
+        <button class="btn btn-secondary" type="button" onclick="agregarRenglonFacturaRefacciones()">AGREGAR RENGLÓN</button>
+        <button class="btn btn-primary" type="button" onclick="aplicarFacturaRefacciones()">APLICAR ENTRADAS AL INVENTARIO</button>
+        <button class="btn btn-secondary" type="button" onclick="limpiarFacturaRefacciones()">LIMPIAR</button>
+      </div>
+      <div id="exportInvoiceMeta" class="adv-factura-meta mt-12">
+        <p class="text-muted" style="margin:0">Sin factura procesada.</p>
+      </div>
+      <div class="table-wrap mt-12">
+        <table id="exportInvoiceItemsTable">
+          <thead>
+            <tr>
+              <th>DESCRIPCIÓN</th>
+              <th>REFACCIÓN SUGERIDA</th>
+              <th>CANTIDAD</th>
+              <th>COSTO UNIT.</th>
+              <th>IMPORTE</th>
+            </tr>
+          </thead>
+          <tbody id="exportInvoiceItemsBody">
+            <tr><td colspan="5" style="text-align:center;color:var(--muted);padding:20px">Sin renglones detectados.</td></tr>
           </tbody>
         </table>
       </div>

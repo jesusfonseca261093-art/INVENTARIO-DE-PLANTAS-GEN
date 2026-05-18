@@ -9,6 +9,7 @@
     'PROGRAMADO',
     'EN MANTENIMIENTO',
     'ESPERANDO REFACCIONES',
+    'TERMINADO',
     'LIBERADO',
     'FUERA DE SERVICIO'
   ];
@@ -95,6 +96,7 @@
 
   function normalizeEstado(estado, riesgoOperativo = 0) {
     const current = String(estado || '').trim().toUpperCase();
+    if (current === 'FINALIZADO') return 'TERMINADO';
     if (ESTADOS.includes(current)) return current;
     return riesgoOperativo >= 81 ? 'FUERA DE SERVICIO' : 'DISPONIBLE';
   }
@@ -450,7 +452,7 @@
     if (accion === 'FINALIZAR') {
       return normalizeProgramacionEntry({
         ...entry,
-        estado: 'ESPERANDO REFACCIONES',
+        estado: 'TERMINADO',
         fecha_fin: today
       });
     }
@@ -565,7 +567,7 @@
       ['PROGRAMADO', 'EN MANTENIMIENTO', 'ESPERANDO REFACCIONES'].includes(item.estado)
     ).length;
     const fueraServicio = programacionMantenimiento.filter(item => item.estado === 'FUERA DE SERVICIO').length;
-    const backlog = programacionMantenimiento.filter(item => item.estado !== 'LIBERADO').length;
+    const backlog = programacionMantenimiento.filter(item => !['LIBERADO', 'TERMINADO'].includes(item.estado)).length;
     const operables = clamp(total - fueraServicio, 0, total);
     const pctOperable = total ? Math.round((operables / total) * 100) : 0;
     const semanas = backlog;
