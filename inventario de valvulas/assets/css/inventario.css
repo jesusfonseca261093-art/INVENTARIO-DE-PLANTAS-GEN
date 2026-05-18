@@ -401,6 +401,10 @@
     align-items: start;
     gap: 14px;
   }
+  /* Si no se renderiza calendario, la matriz debe usar todo el ancho */
+  #tab-reemplazos .repl-layout-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
   .repl-layout-grid > .repl-matrix-card {
     min-width: 0;
   }
@@ -633,6 +637,17 @@
   .matrix-dot-expired { background: #ef4444; border-color: #ef4444; }
   .matrix-dot-warning { background: #facc15; border-color: #facc15; }
   .matrix-dot-ok { background: #ffffff; }
+  .matrix-toolbar {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+  }
+  .matrix-export-btn {
+    font-size: 11px;
+    padding: 7px 12px;
+    letter-spacing: .8px;
+    white-space: nowrap;
+  }
   .matrix-scroll-top {
     overflow-x: auto;
     overflow-y: hidden;
@@ -721,8 +736,8 @@
   }
   #tableReplMatrix th.matrix-sticky-col,
   #tableReplMatrix td.matrix-sticky-col {
-    min-width: 78px;
-    max-width: 78px;
+    min-width: 132px;
+    max-width: 132px;
     box-shadow: 4px 0 0 rgba(209, 213, 219, 0.8);
   }
   #tableReplMatrix th.matrix-part-col,
@@ -744,9 +759,9 @@
     line-height: 1.15;
   }
   .matrix-col-actions {
-    width: 92px;
-    min-width: 92px !important;
-    max-width: 92px !important;
+    width: 132px;
+    min-width: 132px !important;
+    max-width: 132px !important;
   }
   .matrix-col-type {
     width: 50px;
@@ -788,41 +803,84 @@
   padding: 0;
   font-family: inherit;
 }
-.matrix-actions {
+/* -- Shared compact table actions --------------------- */
+.table-actions-cell {
+  min-width: 112px;
+  white-space: nowrap;
+}
+
+td.matrix-sticky-col.table-actions-cell {
+  min-width: 132px;
+}
+
+.table-actions {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 2px;
+  gap: 6px;
   flex-wrap: nowrap;
-  flex-direction: row;
-  white-space: nowrap;
+  box-sizing: border-box;
+  width: 100%;
 }
+
+.action-btn {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  min-height: 28px;
+  padding: 0 !important;
+  font-size: 11px !important;
+  line-height: 1 !important;
+  letter-spacing: 0 !important;
+  flex: 0 0 28px;
+  transition: transform .12s ease, opacity .12s ease;
+}
+
+.action-btn:hover {
+  transform: translateY(-1px);
+}
+
+.table-actions .action-btn:first-child {
+  width: auto;
+  min-width: 46px;
+  flex-basis: auto;
+  padding: 0 8px !important;
+}
+
+.matrix-actions {
+  gap: 4px;
+  justify-content: center;
+}
+
 .matrix-actions-icons {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 2px;
+  gap: 3px;
   flex-wrap: nowrap;
 }
-.matrix-icon-btn {
-  min-width: 18px;
-  width: 18px;
-  height: 18px;
-  padding: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 9px;
-  line-height: 1;
+
+.matrix-icon-btn.action-btn {
+  width: 22px;
+  min-width: 22px;
+  height: 22px;
+  min-height: 22px;
+  flex-basis: 22px;
+  font-size: 11px !important;
 }
-.matrix-maint-btn {
-  padding: 1px 4px;
-  min-height: 18px;
-  font-size: 9px;
-  line-height: 1;
-  letter-spacing: .1px;
-  justify-content: center;
-  white-space: nowrap;
+
+.matrix-maint-btn.action-btn {
+  width: auto;
+  min-width: 48px;
+  height: 22px;
+  min-height: 22px;
+  flex-basis: auto;
+  padding: 0 6px !important;
+  font-size: 10px !important;
 }
   .matrix-edit-link {
     color: var(--warn);
@@ -860,6 +918,7 @@
   .detail-row { display: flex; gap: 6px; margin-bottom: 6px; align-items: baseline; }
   .detail-key { font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--muted); min-width: 120px; letter-spacing: .5px; }
   .detail-val { font-size: 12px; }
+  .detail-grid-fixed { grid-template-columns: 1fr 1fr !important; }
   .part-image-config {
     border-top: 1px dashed var(--border);
     padding-top: 10px;
@@ -999,6 +1058,7 @@
     .table-wrap.table-freeze-y { max-height: 56vh; }
     .matrix-wrap { max-height: 56vh; }
     .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+    .detail-grid-fixed { grid-template-columns: 1fr !important; }
     .header-badge { display: none; }
     .header-user { display: none; }
     .logo-icon { width: 118px; height: 42px; padding: 3px 5px; }
@@ -1156,6 +1216,262 @@
   .expediente-meta b { color: var(--accent); font-size: 12px; }
   .expediente-meta .small { color: var(--muted); font-size: 10px; }
   .text-warning { color: var(--warn); font-size: 11px; }
+
+  /* =========================================================
+     RESPONSIVE DESKTOP OPTIMIZATION (SOLO DESKTOP)
+     Mantiene intacto mobile/tablet (reglas solo min-width)
+     ========================================================= */
+  @media (min-width: 1024px) {
+    html, body {
+      overflow-x: hidden;
+    }
+
+    .container {
+      width: 100%;
+      max-width: min(2400px, calc(100vw - clamp(28px, 3.2vw, 82px)));
+      margin-inline: auto;
+      padding: clamp(16px, 1.15vw, 28px);
+    }
+
+    .container > *,
+    .card,
+    .tab-panel,
+    .grid-2,
+    .grid-3,
+    .grid-4,
+    .stats-grid,
+    .dashboard-main-grid,
+    .repl-layout-grid {
+      min-width: 0;
+    }
+
+    .tabs {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: flex-start;
+      gap: clamp(6px, .6vw, 12px);
+      row-gap: clamp(4px, .45vw, 10px);
+      margin-bottom: clamp(14px, 1vw, 22px);
+      overflow: visible;
+    }
+
+    .tab-btn,
+    .ext-tab-btn {
+      flex: 0 0 auto;
+      padding: clamp(8px, .55vw, 11px) clamp(12px, .9vw, 20px);
+      font-size: clamp(12px, .72vw, 14px);
+      letter-spacing: clamp(.55px, .06vw, 1px);
+      white-space: nowrap;
+      min-height: clamp(38px, 2.1vw, 44px);
+    }
+
+    .card {
+      padding: clamp(14px, .9vw, 22px);
+    }
+
+    .card-title {
+      font-size: clamp(15px, .95vw, 19px);
+      margin-bottom: clamp(12px, .8vw, 18px);
+    }
+
+    .stats-grid {
+      grid-template-columns: repeat(auto-fit, minmax(clamp(190px, 13.5vw, 270px), 1fr));
+      gap: clamp(10px, .8vw, 18px);
+      margin-bottom: clamp(14px, 1vw, 24px);
+      align-items: stretch;
+    }
+
+    .grid-2 {
+      grid-template-columns: repeat(auto-fit, minmax(min(100%, clamp(420px, 38vw, 760px)), 1fr));
+      gap: clamp(10px, .8vw, 18px);
+    }
+
+    .grid-3 {
+      grid-template-columns: repeat(auto-fit, minmax(min(100%, clamp(270px, 26vw, 420px)), 1fr));
+      gap: clamp(10px, .75vw, 16px);
+    }
+
+    .grid-4 {
+      grid-template-columns: repeat(auto-fit, minmax(min(100%, clamp(220px, 20vw, 330px)), 1fr));
+      gap: clamp(10px, .7vw, 15px);
+    }
+
+    .dashboard-main-grid {
+      grid-template-columns: repeat(auto-fit, minmax(min(100%, clamp(420px, 40vw, 760px)), 1fr));
+      gap: clamp(10px, .85vw, 18px);
+      align-items: stretch;
+    }
+
+    .dashboard-panel {
+      min-height: clamp(300px, 31vh, 460px);
+    }
+
+    .dashboard-panel > div[id] {
+      min-height: clamp(220px, 24vh, 360px);
+      max-height: clamp(280px, 31vh, 480px);
+    }
+
+    #dashboardRiskTable,
+    #criticalList,
+    #recentActivity {
+      max-height: clamp(250px, 29vh, 500px);
+    }
+
+    .table-wrap {
+      width: 100%;
+      max-width: 100%;
+      overflow-x: auto;
+      overflow-y: hidden;
+      scrollbar-width: thin;
+      overscroll-behavior-inline: contain;
+    }
+
+    .table-wrap.table-freeze-y {
+      overflow-y: auto;
+    }
+
+    .table-wrap > table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: auto;
+    }
+
+    /* Tablas desktop: scroll horizontal solo cuando sea necesario */
+    #tab-autotanques .table-wrap > table,
+    #tab-reemplazos .table-wrap > table,
+    #tab-programacion .table-wrap > table,
+    #tab-inventario-refacciones .table-wrap > table {
+      min-width: max-content;
+    }
+
+    #tab-autotanques .table-wrap > table { min-width: clamp(1250px, 84vw, 1880px); }
+    #tab-reemplazos .table-wrap > table { min-width: clamp(1320px, 88vw, 2350px); }
+    #tab-programacion .table-wrap > table { min-width: clamp(1120px, 77vw, 1850px); }
+    #tab-inventario-refacciones .table-wrap > table { min-width: clamp(1060px, 72vw, 1760px); }
+
+    #tab-autotanques th,
+    #tab-autotanques td,
+    #tab-reemplazos th,
+    #tab-reemplazos td,
+    #tab-programacion th,
+    #tab-programacion td,
+    #tab-inventario-refacciones th,
+    #tab-inventario-refacciones td {
+      white-space: nowrap;
+      overflow-wrap: normal;
+      word-break: normal;
+    }
+
+    th {
+      font-size: clamp(10px, .58vw, 11px);
+      padding: clamp(8px, .55vw, 11px) clamp(10px, .7vw, 14px);
+    }
+
+    td {
+      font-size: clamp(12px, .72vw, 13px);
+      padding: clamp(8px, .55vw, 11px) clamp(10px, .7vw, 14px);
+    }
+
+    /* Proximos reemplazos: matriz full-width por defecto en desktop */
+    #tab-reemplazos .repl-layout-grid {
+      grid-template-columns: minmax(0, 1fr);
+      gap: clamp(10px, .85vw, 18px);
+    }
+
+    /* Si existe tarjeta de calendario, repartir en dos columnas */
+    #tab-reemplazos .repl-layout-grid:has(.repl-calendar-card) {
+      grid-template-columns: minmax(0, 1.55fr) minmax(0, .95fr);
+    }
+
+    #tab-reemplazos .repl-matrix-card,
+    #tab-reemplazos .repl-calendar-card {
+      width: 100%;
+      max-width: 100%;
+    }
+
+    #tab-reemplazos .matrix-wrap {
+      max-height: clamp(440px, 63vh, 760px);
+      overflow-y: auto;
+      overflow-x: auto;
+      scrollbar-width: thin;
+      overscroll-behavior-inline: contain;
+      width: 100%;
+      max-width: 100%;
+    }
+
+    #tab-reemplazos #tableReplMatrix {
+      min-width: clamp(1700px, 92vw, 2600px);
+      table-layout: auto;
+    }
+
+    #tab-reemplazos #tableReplMatrix th,
+    #tab-reemplazos #tableReplMatrix td {
+      white-space: nowrap;
+      line-height: 1.2;
+      text-overflow: clip;
+    }
+
+    #tab-reemplazos #tableReplMatrix th.matrix-part-col,
+    #tab-reemplazos #tableReplMatrix td.matrix-part-col {
+      min-width: clamp(118px, 7.8vw, 148px);
+    }
+
+    #tab-reemplazos #tableReplMatrix th.matrix-sticky-col,
+    #tab-reemplazos #tableReplMatrix td.matrix-sticky-col {
+      min-width: clamp(116px, 7.4vw, 136px);
+      max-width: clamp(116px, 7.4vw, 136px);
+    }
+
+    #tab-autotanques .matrix-wrap {
+      max-height: clamp(420px, 60vh, 740px);
+      overflow-y: auto;
+      overflow-x: auto;
+      scrollbar-width: thin;
+      overscroll-behavior-inline: contain;
+      width: 100%;
+      max-width: 100%;
+    }
+
+    #tab-autotanques #tableATMatrix {
+      min-width: clamp(1500px, 88vw, 2300px);
+      table-layout: auto;
+    }
+  }
+
+  @media (min-width: 1280px) {
+    .container {
+      max-width: min(2580px, calc(100vw - clamp(34px, 3.7vw, 96px)));
+    }
+  }
+
+  @media (min-width: 1440px) {
+    .container {
+      max-width: min(2780px, calc(100vw - clamp(42px, 4.3vw, 116px)));
+    }
+    #tab-reemplazos .repl-layout-grid:has(.repl-calendar-card) {
+      grid-template-columns: minmax(0, 1.65fr) minmax(0, .9fr);
+    }
+  }
+
+  @media (min-width: 1600px) {
+    .container {
+      max-width: min(3000px, calc(100vw - clamp(50px, 4.7vw, 136px)));
+    }
+    .stats-grid {
+      grid-template-columns: repeat(auto-fit, minmax(clamp(220px, 13vw, 300px), 1fr));
+    }
+  }
+
+  @media (min-width: 1920px) {
+    .container {
+      max-width: min(3400px, calc(100vw - clamp(62px, 5.3vw, 170px)));
+      padding: clamp(18px, 1vw, 34px);
+    }
+    .card {
+      padding: clamp(16px, .85vw, 24px);
+    }
+  }
 
   /* Print */
   @media print {

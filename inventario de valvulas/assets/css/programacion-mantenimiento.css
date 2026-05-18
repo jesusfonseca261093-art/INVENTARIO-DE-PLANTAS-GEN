@@ -1,0 +1,260 @@
+.prog-header-row {
+  align-items: flex-end;
+}
+
+.prog-actions {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.prog-control {
+  min-width: 230px;
+}
+
+.prog-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(160px, 1fr));
+  gap: 12px;
+}
+
+.prog-kpi-card {
+  padding: 14px 16px;
+  background: linear-gradient(180deg, #ffffff 0%, #f7fbff 100%);
+}
+
+.prog-kpi-label {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+
+.prog-kpi-value {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 30px;
+  line-height: 1;
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.prog-alert-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.prog-alert-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+}
+
+.prog-alert-text {
+  font-size: 12px;
+  color: var(--text);
+}
+
+.prog-layout-grid {
+  align-items: start;
+}
+
+.prog-status {
+  border-radius: 12px;
+  padding: 3px 10px;
+  font-size: 10px;
+  font-family: 'IBM Plex Mono', monospace;
+  letter-spacing: 1px;
+  border: 1px solid transparent;
+  white-space: nowrap;
+  text-transform: uppercase;
+}
+
+.prog-status-disponible,
+.prog-status-liberado {
+  background: rgba(34, 197, 94, 0.15);
+  color: #15803d;
+  border-color: rgba(34, 197, 94, 0.35);
+}
+
+.prog-status-programado {
+  background: rgba(14, 165, 233, 0.14);
+  color: #0369a1;
+  border-color: rgba(14, 165, 233, 0.35);
+}
+
+.prog-status-en-mantenimiento {
+  background: rgba(245, 158, 11, 0.14);
+  color: #b45309;
+  border-color: rgba(245, 158, 11, 0.35);
+}
+
+.prog-status-esperando-refacciones {
+  background: rgba(249, 115, 22, 0.14);
+  color: #c2410c;
+  border-color: rgba(249, 115, 22, 0.35);
+}
+
+.prog-status-fuera-de-servicio {
+  background: rgba(239, 68, 68, 0.14);
+  color: #dc2626;
+  border-color: rgba(239, 68, 68, 0.35);
+}
+
+.prog-risk {
+  border-radius: 12px;
+  padding: 3px 10px;
+  font-size: 10px;
+  font-family: 'IBM Plex Mono', monospace;
+  letter-spacing: 1px;
+  border: 1px solid transparent;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.prog-risk-operable {
+  background: rgba(34, 197, 94, 0.15);
+  color: #15803d;
+  border-color: rgba(34, 197, 94, 0.35);
+}
+
+.prog-risk-programar {
+  background: rgba(14, 165, 233, 0.14);
+  color: #0369a1;
+  border-color: rgba(14, 165, 233, 0.35);
+}
+
+.prog-risk-urgente {
+  background: rgba(249, 115, 22, 0.14);
+  color: #c2410c;
+  border-color: rgba(249, 115, 22, 0.35);
+}
+
+.prog-risk-fuera {
+  background: rgba(239, 68, 68, 0.14);
+  color: #dc2626;
+  border-color: rgba(239, 68, 68, 0.35);
+}
+
+.prog-actions-inline {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(86px, 1fr));
+  gap: 4px;
+}
+
+.prog-actions-inline .btn {
+  justify-content: center;
+  padding: 5px 8px;
+  font-size: 10px;
+}
+
+.prog-tech-input {
+  min-width: 140px;
+  padding: 6px 8px;
+  font-size: 12px;
+}
+
+@media (max-width: 1260px) {
+  .prog-kpi-grid {
+    grid-template-columns: repeat(3, minmax(150px, 1fr));
+  }
+}
+
+@media (max-width: 980px) {
+  .prog-kpi-grid {
+    grid-template-columns: repeat(2, minmax(140px, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .prog-kpi-grid {
+    grid-template-columns: 1fr;
+  }
+  .prog-actions {
+    align-items: stretch;
+  }
+  .prog-control {
+    min-width: 100%;
+  }
+}
+
+/* Desktop-only responsive tuning for programación */
+@media (min-width: 1024px) {
+  .prog-kpi-grid {
+    grid-template-columns: repeat(auto-fit, minmax(clamp(180px, 16vw, 280px), 1fr));
+    gap: clamp(10px, .8vw, 16px);
+  }
+
+  .prog-kpi-card {
+    min-height: clamp(106px, 10vh, 156px);
+    height: 100%;
+  }
+
+  .prog-kpi-value {
+    font-size: clamp(26px, 2vw, 38px);
+  }
+
+  .prog-header-row {
+    gap: clamp(10px, .9vw, 16px);
+  }
+
+  .prog-actions {
+    gap: clamp(8px, .7vw, 14px);
+  }
+
+  .prog-control {
+    min-width: clamp(220px, 17vw, 300px);
+  }
+
+  .prog-layout-grid {
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.4fr);
+    gap: clamp(10px, .9vw, 18px);
+  }
+
+  #tab-programacion .table-wrap table {
+    min-width: clamp(1100px, 76vw, 1900px);
+  }
+
+  .prog-tech-input {
+    width: 100%;
+    min-width: clamp(130px, 10vw, 220px);
+    font-size: clamp(11px, .7vw, 13px);
+  }
+
+  .prog-actions-inline .btn {
+    min-height: clamp(28px, 1.6vw, 34px);
+    font-size: clamp(9px, .58vw, 11px);
+    padding: 4px 6px;
+  }
+}
+
+@media (min-width: 1280px) {
+  .prog-layout-grid {
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, 1.5fr);
+  }
+}
+
+@media (min-width: 1440px) {
+  .prog-kpi-grid {
+    grid-template-columns: repeat(auto-fit, minmax(clamp(210px, 14vw, 320px), 1fr));
+  }
+}
+
+@media (min-width: 1600px) {
+  .prog-layout-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr);
+  }
+}
+
+@media (min-width: 1920px) {
+  .prog-layout-grid {
+    grid-template-columns: minmax(0, .95fr) minmax(0, 1.7fr);
+  }
+}

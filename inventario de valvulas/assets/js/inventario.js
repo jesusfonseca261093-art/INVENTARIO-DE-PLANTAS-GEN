@@ -2652,11 +2652,11 @@ function renderEstaciones() {
               <span style="font-size:11px">${comps.length}/${getStationPartsCount()}</span>
             </td>
             <td>${comps.length ? '<span class="badge badge-ok">ACTIVO</span>' : '<span class="badge badge-none">SIN REGISTROS</span>'}</td>
-            <td>
-              <div class="flex-gap">
-                <button class="btn btn-secondary" style="padding:5px 10px;font-size:11px" onclick="openEstacionView('${r.id}')">VER</button>
-                <button class="btn btn-secondary" style="padding:5px 10px;font-size:11px" onclick="openEstacionEdit('${r.id}')">✏️</button>
-                <button class="btn btn-danger" style="padding:5px 10px;font-size:11px" onclick="deleteEstacion('${r.id}')">🗑</button>
+            <td class="table-actions-cell">
+              <div class="table-actions">
+                <button class="btn btn-secondary action-btn" onclick="openEstacionView('${r.id}')">VER</button>
+                <button class="btn btn-secondary action-btn" onclick="openEstacionEdit('${r.id}')">✏️</button>
+                <button class="btn btn-danger action-btn" onclick="deleteEstacion('${r.id}')">🗑</button>
               </div>
             </td>
           </tr>
@@ -2722,7 +2722,7 @@ function openEstacionView(id) {
   if (!body) return;
 
   body.innerHTML = `
-    <div class="grid-2" style="margin-bottom:16px">
+    <div class="grid-2 detail-grid-fixed" style="margin-bottom:16px">
       <div class="detail-row"><span class="detail-key">PLANTA:</span><span class="detail-val">${escapeHtml(st.planta)}</span></div>
       <div class="detail-row"><span class="detail-key">ESTACIÓN:</span><span class="detail-val">${escapeHtml(st.estacion)}</span></div>
       <div class="detail-row"><span class="detail-key">NÚMERO DE BOMBA:</span><span class="detail-val">${escapeHtml(st.bomba)}</span></div>
@@ -3707,11 +3707,11 @@ function renderAutotanques() {
           <span style="font-size:11px">${atRecs.length}/${PARTS.length}</span>
         </td>
         <td>${estado}</td>
-        <td>
-          <div class="flex-gap">
-            <button class="btn btn-secondary" style="padding:5px 10px;font-size:11px" onclick="viewAutotanque('${at.id}')">VER</button>
-            <button class="btn btn-secondary" style="padding:5px 10px;font-size:11px" onclick="openModalAutotanque('${at.id}')">✏️</button>
-            <button class="btn btn-danger" style="padding:5px 10px;font-size:11px" onclick="deleteAutotanque('${at.id}')">🗑</button>
+        <td class="table-actions-cell">
+          <div class="table-actions">
+            <button class="btn btn-secondary action-btn" onclick="viewAutotanque('${at.id}')">VER</button>
+            <button class="btn btn-secondary action-btn" onclick="openModalAutotanque('${at.id}')">✏️</button>
+            <button class="btn btn-danger action-btn" onclick="deleteAutotanque('${at.id}')">🗑</button>
           </div>
         </td>
       </tr>`;
@@ -3794,14 +3794,14 @@ function renderAutotanquesExpiryMatrix(units = []) {
 
     return `
       <tr>
-        <td class="matrix-sticky-col">
-          <div class="matrix-actions">
+        <td class="matrix-sticky-col table-actions-cell">
+          <div class="matrix-actions table-actions">
             <div class="matrix-actions-icons">
-              <button class="btn btn-secondary matrix-icon-btn" title="Ver" onclick="viewAutotanque('${unit.id}')">👁</button>
-              <button class="btn btn-secondary matrix-icon-btn" title="Editar registro de reemplazo" onclick="openMatrixRecordEditor('${unit.id}')">✏️</button>
-              <button class="btn btn-danger matrix-icon-btn" title="Eliminar registro de reemplazo" onclick="deleteMatrixRecord('${unit.id}')">🗑</button>
+              <button class="btn btn-secondary matrix-icon-btn action-btn" title="Ver" onclick="viewAutotanque('${unit.id}')">👁</button>
+              <button class="btn btn-secondary matrix-icon-btn action-btn" title="Editar registro de reemplazo" onclick="openMatrixRecordEditor('${unit.id}')">✏️</button>
+              <button class="btn btn-danger matrix-icon-btn action-btn" title="Eliminar registro de reemplazo" onclick="deleteMatrixRecord('${unit.id}')">🗑</button>
             </div>
-            <button class="btn btn-secondary matrix-maint-btn" title="Registrar mantenimiento" onclick="openMaintenanceModal('${unit.id}')">Mant.</button>
+            <button class="btn btn-secondary matrix-maint-btn action-btn" title="Registrar mantenimiento" onclick="openMaintenanceModal('${unit.id}')">Mant.</button>
           </div>
         </td>
         <td class="matrix-meta">${escapeHtml(unit.plantaActual || '—')}</td>
@@ -3991,14 +3991,14 @@ function renderReemplazosExpiryMatrix() {
 
     return `
       <tr>
-        <td class="matrix-sticky-col matrix-col-actions">
-          <div class="matrix-actions">
+        <td class="matrix-sticky-col matrix-col-actions table-actions-cell">
+          <div class="matrix-actions table-actions">
             <div class="matrix-actions-icons">
-              <button class="btn btn-secondary matrix-icon-btn" title="Ver" onclick="viewAutotanque('${unit.id}')">👁</button>
-              <button class="btn btn-secondary matrix-icon-btn" title="Editar registro de reemplazo" onclick="openMatrixRecordEditor('${unit.id}')">✏️</button>
-              <button class="btn btn-danger matrix-icon-btn" title="Eliminar registro de reemplazo" onclick="deleteMatrixRecord('${unit.id}')">🗑</button>
+              <button class="btn btn-secondary matrix-icon-btn action-btn" title="Ver" onclick="viewAutotanque('${unit.id}')">👁</button>
+              <button class="btn btn-secondary matrix-icon-btn action-btn" title="Editar registro de reemplazo" onclick="openMatrixRecordEditor('${unit.id}')">✏️</button>
+              <button class="btn btn-danger matrix-icon-btn action-btn" title="Eliminar registro de reemplazo" onclick="deleteMatrixRecord('${unit.id}')">🗑</button>
             </div>
-            <button class="btn btn-secondary matrix-maint-btn" title="Registrar mantenimiento" onclick="openMaintenanceModal('${unit.id}')">Mant.</button>
+            <button class="btn btn-secondary matrix-maint-btn action-btn" title="Registrar mantenimiento" onclick="openMaintenanceModal('${unit.id}')">Mant.</button>
           </div>
         </td>
         <td class="matrix-meta">${escapeHtml(unit.plantaActual || '—')}</td>
@@ -4179,7 +4179,7 @@ function viewAutotanque(id) {
 
   document.getElementById('modalDetailTitle').textContent = `${at.econ} | ${at.placa}`;
   document.getElementById('modalDetailBody').innerHTML = `
-    <div class="grid-2" style="margin-bottom:16px">
+    <div class="grid-2 detail-grid-fixed" style="margin-bottom:16px">
       <div class="detail-row"><span class="detail-key">ECONÓMICO:</span><span class="detail-val">${at.econ}</span></div>
       <div class="detail-row"><span class="detail-key">PLACA:</span><span class="detail-val">${at.placa}</span></div>
       <div class="detail-row"><span class="detail-key">SERIE UNIDAD:</span><span class="detail-val">${at.serieUnidad||'—'}</span></div>
@@ -4194,7 +4194,7 @@ function viewAutotanque(id) {
       <div class="detail-row"><span class="detail-key">EXPEDICIÓN NOM-007-SESH-2010:</span><span class="detail-val">${(at.nom007SeshMes || at.nom007SeshAnio) ? `${at.nom007SeshMes || '—'} / ${at.nom007SeshAnio || '—'}` : '—'}</span></div>
       <div class="detail-row"><span class="detail-key">REGISTRO SENER:</span><span class="detail-val">${at.registroSener || '—'}</span></div>
       <div class="detail-row"><span class="detail-key">NO. REG. TAG SENER:</span><span class="detail-val">${at.noRegTagSener || '—'}</span></div>
-      <div class="detail-row" style="grid-column:1 / -1"><span class="detail-key">NOTAS AUTOTANQUE:</span><span class="detail-val" style="white-space:pre-wrap;overflow-wrap:anywhere">${escapeHtml(at.notas || '—')}</span></div>
+      <div class="detail-row"><span class="detail-key">NOTAS AUTOTANQUE:</span><span class="detail-val">${escapeHtml(at.notas || '—')}</span></div>
     </div>
     <div class="section-sep"></div>
     <div class="card-title">DATOS DE REGISTRO (${capturedPartCount}/${partsSorted.length})</div>
@@ -4353,10 +4353,10 @@ function renderReemplazos() {
             <td>${formatDate(r.replDate)}</td>
             <td>${dStr}</td>
             <td>${statusBadge(r.days)}</td>
-            <td>
-              <div class="flex-gap">
-                <button class="btn btn-secondary" style="padding:4px 8px;font-size:10px" onclick="openRecordEditor('${r.id}')">✏️</button>
-                <button class="btn btn-danger" style="padding:4px 8px;font-size:10px" onclick="deleteRecord('${r.id}')">🗑</button>
+            <td class="table-actions-cell">
+              <div class="table-actions">
+                <button class="btn btn-secondary action-btn" onclick="openRecordEditor('${r.id}')">✏️</button>
+                <button class="btn btn-danger action-btn" onclick="deleteRecord('${r.id}')">🗑</button>
               </div>
             </td>
           </tr>`;
@@ -5141,6 +5141,82 @@ function exportVencidosCSV() {
     }
   });
   downloadCSV('vencimientos_criticos_NOM007.csv', rows);
+}
+
+function exportReplMatrixExcel() {
+  const table = document.getElementById('tableReplMatrix');
+  if (!table) {
+    alert('No se encontró la matriz para exportar.');
+    return;
+  }
+
+  const allRows = Array.from(table.querySelectorAll('tr'));
+  const visibleRows = allRows.filter(row => row.querySelectorAll('th,td').length && row.offsetParent !== null);
+  if (!visibleRows.length) {
+    alert('No hay datos visibles en la matriz para exportar.');
+    return;
+  }
+
+  const escapeXls = (value) => String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
+  const rowsHtml = visibleRows.map((row) => {
+    const cells = Array.from(row.querySelectorAll('th,td')).map((cell) => {
+      const tag = cell.tagName.toLowerCase() === 'th' ? 'th' : 'td';
+      const value = (cell.innerText || cell.textContent || '').replace(/\s+/g, ' ').trim();
+      const computed = window.getComputedStyle(cell);
+      const bgColor = computed.backgroundColor;
+      const textColor = computed.color;
+      const fontWeight = computed.fontWeight;
+      const textAlign = computed.textAlign;
+
+      const inlineStyles = [
+        bgColor && bgColor !== 'rgba(0, 0, 0, 0)' ? `background:${bgColor}` : '',
+        textColor ? `color:${textColor}` : '',
+        fontWeight ? `font-weight:${fontWeight}` : '',
+        textAlign ? `text-align:${textAlign}` : '',
+        'white-space:nowrap'
+      ].filter(Boolean).join(';');
+
+      return `<${tag} style="${inlineStyles}">${escapeXls(value)}</${tag}>`;
+    }).join('');
+    return `<tr>${cells}</tr>`;
+  }).join('');
+
+  const now = new Date();
+  const yyyy = now.getFullYear();
+  const mm = String(now.getMonth() + 1).padStart(2, '0');
+  const dd = String(now.getDate()).padStart(2, '0');
+  const hh = String(now.getHours()).padStart(2, '0');
+  const mi = String(now.getMinutes()).padStart(2, '0');
+  const fileName = `matriz_vencimientos_componentes_${yyyy}${mm}${dd}_${hh}${mi}.xls`;
+
+  const workbookHtml = `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    table { border-collapse: collapse; font-family: Arial, sans-serif; font-size: 11px; }
+    th, td { border: 1px solid #d1d5db; padding: 4px 6px; text-align: center; white-space: nowrap; }
+  </style>
+</head>
+<body>
+  <table>${rowsHtml}</table>
+</body>
+</html>`;
+
+  const blob = new Blob(['\uFEFF', workbookHtml], {
+    type: 'application/vnd.ms-excel;charset=utf-8;'
+  });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = fileName;
+  a.click();
+  URL.revokeObjectURL(a.href);
 }
 
 function exportFormatoValvulasPorPlanta() {

@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Inventario NOM-EM-007-ASEA-2025 | Autotanques</title>
 <link rel="stylesheet" href="assets/css/inventario.css">
+<link rel="stylesheet" href="assets/css/programacion-mantenimiento.css">
+<link rel="stylesheet" href="assets/css/modulos-avanzados.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.20/index.global.min.css">
 </head>
 <body>
@@ -52,6 +54,9 @@
     <button class="tab-btn" onclick="switchTab('estaciones')">⛽ ESTACIONES DE CARBURACIÓN</button>
     <button class="tab-btn" onclick="switchTab('registro')">➕ REGISTRAR COMPONENTE</button>
     <button class="tab-btn" onclick="switchTab('reemplazos')">⚠️ PRÓXIMOS REEMPLAZOS</button>
+    <button class="ext-tab-btn" id="tabBtnProgramacion" onclick="openProgramacionTab()">📅 PROGRAMACIÓN</button>
+    <button class="ext-tab-btn" id="tabBtnCronograma" onclick="openAdvancedTab('cronograma')">📈 CRONOGRAMA</button>
+    <button class="ext-tab-btn" id="tabBtnInventarioRef" onclick="openAdvancedTab('inventario-refacciones')">📦 INVENTARIO REFACCIONES</button>
     <button class="tab-btn" onclick="switchTab('exportar')">📥 EXPORTAR</button>
   </div>
 
@@ -354,13 +359,16 @@
         </select>
       </div>
     </div>
-    <div class="grid-2 repl-layout-grid mt-16">
+    <div class="repl-layout-grid mt-16">
       <div class="card repl-matrix-card">
         <div class="card-title">MATRIZ DE VENCIMIENTOS POR COMPONENTE</div>
         <div class="matrix-info-bar mt-12">
           <span id="replMatrixCounter">0 Autotanque(s) encontrado(s)</span>
         </div>
         <p class="text-muted mt-12">Las celdas en rojo indican vencimientos (componentes y normas).</p>
+        <div class="matrix-toolbar mt-12">
+          <button type="button" class="btn btn-export matrix-export-btn" onclick="exportReplMatrixExcel()">📊 EXPORTAR EXCEL MATRIZ</button>
+        </div>
         <div class="matrix-legend matrix-legend-inline">
           <button type="button" class="matrix-legend-item matrix-legend-btn" data-matrix-filter="expired" onclick="setReplMatrixColorFilter('expired')"><span class="matrix-dot matrix-dot-expired"></span>Vencido</button>
           <button type="button" class="matrix-legend-item matrix-legend-btn" data-matrix-filter="warning" onclick="setReplMatrixColorFilter('warning')"><span class="matrix-dot matrix-dot-warning"></span>Por vencer</button>
@@ -376,12 +384,233 @@
           </table>
         </div>
       </div>
+    </div>
+  </div>
 
-      <div class="card repl-calendar-card">
-        <div class="card-title">CALENDARIO DE MANTENIMIENTOS</div>
-        <p class="text-muted mt-12"></p>
-        <div id="replMaintenanceCalendarEmpty" class="text-muted" style="display:none;margin-top:10px"></div>
-        <div id="replMaintenanceCalendar"></div>
+  <!-- ── PROGRAMACIÓN DE MANTENIMIENTO ──────────────── -->
+  <div id="tab-programacion" class="tab-panel">
+    <div class="search-row prog-header-row">
+      <div class="card-title" style="margin:0">PROGRAMACIÓN DE MANTENIMIENTO</div>
+      <div class="prog-actions">
+        <div class="prog-control">
+          <label>UNIDAD DE ARRANQUE</label>
+          <select id="progUnidadInicio"></select>
+        </div>
+        <div class="prog-control">
+          <label>TÉCNICO RESPONSABLE</label>
+          <input type="text" id="progTecnicoDefault" placeholder="Ej. Tec. Martínez">
+        </div>
+        <button class="btn btn-secondary" type="button" onclick="calcularPrioridadMantenimiento()">RECALCULAR PRIORIDAD</button>
+        <button class="btn btn-primary" type="button" onclick="generarProgramacionSemanal()">GENERAR PROGRAMACIÓN SEMANAL</button>
+      </div>
+    </div>
+
+    <div class="prog-kpi-grid mt-16">
+      <div class="card prog-kpi-card">
+        <div class="prog-kpi-label">UNIDADES PROGRAMADAS</div>
+        <div class="prog-kpi-value" id="progKpiProgramadas">0</div>
+      </div>
+      <div class="card prog-kpi-card">
+        <div class="prog-kpi-label">FUERA DE SERVICIO</div>
+        <div class="prog-kpi-value" id="progKpiFueraServicio">0</div>
+      </div>
+      <div class="card prog-kpi-card">
+        <div class="prog-kpi-label">BACKLOG MANTENIMIENTO</div>
+        <div class="prog-kpi-value" id="progKpiBacklog">0</div>
+      </div>
+      <div class="card prog-kpi-card">
+        <div class="prog-kpi-label">% FLOTA OPERABLE</div>
+        <div class="prog-kpi-value" id="progKpiOperable">0%</div>
+      </div>
+      <div class="card prog-kpi-card">
+        <div class="prog-kpi-label">SEMANAS PARA REGULARIZAR</div>
+        <div class="prog-kpi-value" id="progKpiSemanas">0</div>
+      </div>
+    </div>
+
+    <div class="card mt-16">
+      <div class="card-title">ALERTAS OPERATIVAS</div>
+      <div id="progAlerts" class="prog-alert-list">
+        <p class="text-muted">Sin alertas por ahora.</p>
+      </div>
+    </div>
+
+    <div class="grid-2 mt-16 prog-layout-grid">
+      <div class="card">
+        <div class="card-title">PRIORIDAD AUTOMÁTICA POR UNIDAD</div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>UNIDAD</th>
+                <th>PLANTA</th>
+                <th>VENCIDOS</th>
+                <th>CRÍTICOS</th>
+                <th>DÍAS VENCIDO</th>
+                <th>PRIORIDAD</th>
+                <th>RIESGO</th>
+              </tr>
+            </thead>
+            <tbody id="progPriorityBody">
+              <tr><td colspan="7" style="text-align:center;color:var(--muted);padding:20px">Sin datos.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">CALENDARIO SEMANAL DE MANTENIMIENTO</div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>SEMANA</th>
+                <th>UNIDAD</th>
+                <th>PLANTA</th>
+                <th>TÉCNICO</th>
+                <th>ESTADO</th>
+                <th>PRIORIDAD</th>
+                <th>RIESGO</th>
+                <th>ACCIONES</th>
+              </tr>
+            </thead>
+            <tbody id="progWeeklyBody">
+              <tr><td colspan="8" style="text-align:center;color:var(--muted);padding:20px">Genera la programación para visualizar la carga semanal.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── CRONOGRAMA ──────────────────────────── -->
+  <div id="tab-cronograma" class="tab-panel">
+    <div class="search-row">
+      <div class="card-title" style="margin:0">CRONOGRAMA TIPO GANTT</div>
+      <div class="flex-gap">
+        <div style="min-width:220px">
+          <label>PLANTA</label>
+          <select id="cronogramaPlantFilter"></select>
+        </div>
+        <div style="min-width:220px">
+          <label>ESTADO</label>
+          <select id="cronogramaStatusFilter">
+            <option value="">Todos</option>
+            <option value="PROGRAMADO">Programado</option>
+            <option value="EN MANTENIMIENTO">En mantenimiento</option>
+            <option value="ESPERANDO REFACCIONES">Esperando refacciones</option>
+            <option value="LIBERADO">Liberado</option>
+            <option value="FUERA DE SERVICIO">Fuera de servicio</option>
+          </select>
+        </div>
+        <button class="btn btn-secondary" type="button" onclick="renderCronogramaGantt()">ACTUALIZAR</button>
+      </div>
+    </div>
+
+    <div class="card mt-16">
+      <div class="card-title">CAPACIDAD POR PLANTA Y CONFLICTOS</div>
+      <div id="cronogramaCapacity" class="adv-inline-metrics">
+        <p class="text-muted">Sin datos de capacidad.</p>
+      </div>
+    </div>
+
+    <div class="card mt-16">
+      <div class="adv-gantt-wrap" id="cronogramaGanttWrap">
+        <div class="adv-gantt-grid" id="cronogramaGanttGrid"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── INVENTARIO REFACCIONES ───────────── -->
+  <div id="tab-inventario-refacciones" class="tab-panel">
+    <div class="grid-2" style="gap:20px;align-items:start">
+      <div class="card">
+        <div class="card-title">REGISTRO DE REFACCIONES</div>
+        <div class="grid-3">
+          <div><label>NOMBRE</label><input type="text" id="invNombre"></div>
+          <div><label>NÚMERO DE PARTE</label><input type="text" id="invNumeroParte"></div>
+          <div><label>MARCA</label><input type="text" id="invMarca"></div>
+          <div><label>STOCK ACTUAL</label><input type="number" min="0" id="invStockActual"></div>
+          <div><label>STOCK MÍNIMO</label><input type="number" min="0" id="invStockMinimo"></div>
+          <div><label>UBICACIÓN</label><input type="text" id="invUbicacion"></div>
+          <div><label>PROVEEDOR</label><input type="text" id="invProveedor"></div>
+          <div><label>COSTO</label><input type="number" min="0" step="0.01" id="invCosto"></div>
+          <div><label>CATEGORÍA</label><input type="text" id="invCategoria"></div>
+        </div>
+        <div class="mt-12 flex-gap">
+          <button class="btn btn-primary" type="button" onclick="guardarRefaccion()">GUARDAR REFACCIÓN</button>
+          <button class="btn btn-secondary" type="button" onclick="limpiarRefaccionForm()">LIMPIAR</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">MOVIMIENTO DE INVENTARIO</div>
+        <div class="grid-2">
+          <div>
+            <label>REFACCIÓN</label>
+            <select id="movRefaccionId"></select>
+          </div>
+          <div>
+            <label>TIPO</label>
+            <select id="movTipo">
+              <option value="ENTRADA">ENTRADA</option>
+              <option value="SALIDA">SALIDA</option>
+              <option value="AJUSTE">AJUSTE</option>
+            </select>
+          </div>
+          <div>
+            <label>CANTIDAD</label>
+            <input type="number" min="1" id="movCantidad">
+          </div>
+          <div>
+            <label>UNIDAD</label>
+            <input type="text" id="movUnidad" placeholder="Ej. QI-193">
+          </div>
+          <div>
+            <label>TÉCNICO</label>
+            <input type="text" id="movTecnico">
+          </div>
+          <div>
+            <label>OBSERVACIONES</label>
+            <input type="text" id="movObservaciones">
+          </div>
+        </div>
+        <div class="mt-12 flex-gap">
+          <button class="btn btn-primary" type="button" onclick="registrarMovimientoInventario()">REGISTRAR MOVIMIENTO</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="adv-kpi-grid mt-16">
+      <div class="card adv-kpi-card"><div class="adv-kpi-label">PIEZAS AGOTADAS</div><div class="adv-kpi-value" id="invKpiAgotadas">0</div></div>
+      <div class="card adv-kpi-card"><div class="adv-kpi-label">PIEZAS CRÍTICAS</div><div class="adv-kpi-value" id="invKpiCriticas">0</div></div>
+      <div class="card adv-kpi-card"><div class="adv-kpi-label">COSTO INVENTARIO</div><div class="adv-kpi-value" id="invKpiCosto">$0</div></div>
+      <div class="card adv-kpi-card"><div class="adv-kpi-label">CONSUMO MENSUAL</div><div class="adv-kpi-value" id="invKpiConsumo">0</div></div>
+    </div>
+
+    <div class="card mt-16">
+      <div class="card-title">ALERTAS DE INVENTARIO</div>
+      <div id="invAlertas"><p class="text-muted">Sin alertas de inventario.</p></div>
+    </div>
+
+    <div class="grid-2 mt-16">
+      <div class="card">
+        <div class="card-title">STOCK ACTUAL</div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>REFACCIÓN</th><th>PARTE</th><th>STOCK</th><th>MÍNIMO</th><th>ESTADO</th><th>COSTO</th></tr></thead>
+            <tbody id="invStockBody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">HISTORIAL DE MOVIMIENTOS</div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>FECHA</th><th>TIPO</th><th>REFACCIÓN</th><th>CANTIDAD</th><th>UNIDAD</th><th>TÉCNICO</th></tr></thead>
+            <tbody id="invMovBody"></tbody>
+          </table>
+        </div>
       </div>
     </div>
   </div>
@@ -762,5 +991,7 @@
 <script src="assets/config/supabase.config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.20/index.global.min.js"></script>
 <script src="assets/js/inventario.js" defer></script>
+<script src="assets/js/programacion-mantenimiento.js" defer></script>
+<script src="assets/js/modulos-avanzados.js" defer></script>
 </body>
 </html>
