@@ -1,0 +1,30 @@
+name: Supabase Daily Keepalive
+
+on:
+  schedule:
+    # GitHub cron usa UTC. 12:17 UTC ~= 06:17 America/Mexico_City.
+    - cron: "17 12 * * *"
+  workflow_dispatch:
+
+jobs:
+  keepalive:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      - name: Run daily keepalive query
+        env:
+          PGSSLMODE: require
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          if [ -z "$SUPABASE_DB_URL" ]; then
+            echo "Missing SUPABASE_DB_URL secret. Add it in Settings > Secrets and variables > Actions."
+            exit 1
+          fi
+
+          psql "$SUPABASE_DB_URL" \
+            -v ON_ERROR_STOP=1 \
+            -c "select now() as keepalive_checked_at;"
