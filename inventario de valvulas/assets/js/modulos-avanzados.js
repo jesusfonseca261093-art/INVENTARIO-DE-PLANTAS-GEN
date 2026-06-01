@@ -100,10 +100,10 @@
         id: String(item?.id || ''),
         unidad_id: String(item?.unidad_id || ''),
         economico: String(item?.economico || ''),
-        planta: String(item?.planta || ''),
+        planta: String(item?.planta || '').trim(),
         fecha_inicio: toDateOnly(item?.fecha_inicio || ''),
         fecha_fin: toDateOnly(item?.fecha_fin || ''),
-        estado: String(item?.estado || '').toUpperCase(),
+        estado: String(item?.estado || '').trim().toUpperCase(),
         tecnico: String(item?.tecnico || ''),
         prioridad: Number(item?.prioridad || 0),
         riesgo_operativo: Number(item?.riesgo_operativo || 0),
@@ -268,13 +268,38 @@
     });
   }
 
+  function normalizeCronogramaFilter(value) {
+    return String(value || '').trim().toUpperCase();
+  }
+
   function initializePlantFilter() {
-    const plants = Array.from(new Set((Array.isArray(autotanques) ? autotanques : []).map(a => String(a?.plantaActual || '').trim()).filter(Boolean)));
     const select = document.getElementById('cronogramaPlantFilter');
     if (!select) return;
-    const prev = select.value || '';
-    select.innerHTML = `<option value="">Todas las plantas</option>${plants.map(p => `<option value="${safeText(p)}">${safeText(p)}</option>`).join('')}`;
-    if (prev && plants.includes(prev)) select.value = prev;
+    const previous = normalizeCronogramaFilter(select.value);
+    const plantsByValue = new Map();
+    const addPlant = plant => {
+      const label = String(plant || '').trim();
+      const value = normalizeCronogramaFilter(label);
+      if (value && !plantsByValue.has(value)) plantsByValue.set(value, label);
+    };
+    (Array.isArray(autotanques) ? autotanques : []).forEach(a => addPlant(a?.plantaActual));
+    maintenanceRows().forEach(row => addPlant(row.planta));
+    const plants = Array.from(plantsByValue.entries()).sort((a, b) => a[1].localeCompare(b[1]));
+    select.innerHTML = `<option value="">Todas las plantas</option>${plants.map(([value, label]) => `<option value="${safeText(value)}">${safeText(label)}</option>`).join('')}`;
+    if (previous && plantsByValue.has(previous)) select.value = previous;
+  }
+
+  function bindCronogramaFilters() {
+    ['cronogramaPlantFilter', 'cronogramaStatusFilter'].forEach(id => {
+      const control = document.getElementById(id);
+      if (!control || control.dataset.cronogramaBound === '1') return;
+      control.addEventListener('change', renderCronogramaGantt);
+      control.dataset.cronogramaBound = '1';
+    });
+    const refreshBtn = document.getElementById('cronogramaRefreshBtn');
+    if (!refreshBtn || refreshBtn.dataset.cronogramaBound === '1') return;
+    refreshBtn.addEventListener('click', renderCronogramaGantt);
+    refreshBtn.dataset.cronogramaBound = '1';
   }
 
   function weekOfYear(date) {
@@ -332,11 +357,11 @@
   }
 
   function buildCronogramaRows() {
-    const plant = String(document.getElementById('cronogramaPlantFilter')?.value || '').trim();
-    const status = String(document.getElementById('cronogramaStatusFilter')?.value || '').trim().toUpperCase();
+    const plant = normalizeCronogramaFilter(document.getElementById('cronogramaPlantFilter')?.value);
+    const status = normalizeCronogramaFilter(document.getElementById('cronogramaStatusFilter')?.value);
     return maintenanceRows().filter(row => {
-      if (plant && row.planta !== plant) return false;
-      if (status && row.estado !== status) return false;
+      if (plant && normalizeCronogramaFilter(row.planta) !== plant) return false;
+      if (status && normalizeCronogramaFilter(row.estado) !== status) return false;
       return Boolean(row.fecha_inicio && row.fecha_fin);
     });
   }
@@ -1442,6 +1467,7 @@ function patchProgramacionActions() {
   function bootstrapAdvancedModules() {
     bindTabBridge();
     initializePlantFilter();
+    bindCronogramaFilters();
     initMobileMode();
     patchProgramacionActions();
     if (window.openProgramacionTab && !window.openProgramacionTab.__patchedExt) {
