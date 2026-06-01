@@ -150,8 +150,6 @@ const PLANTAS_ACTUALES = ['QUERETARO', 'BALVANERA', 'GALERAS', 'PEDRO ESCOBEDO']
 const MAX_DOC_SIZE_LOCAL_BYTES = 1.5 * 1024 * 1024;
 const MAX_DOC_SIZE_SUPABASE_BYTES = 10 * 1024 * 1024;
 const MAX_PART_IMAGE_SIZE_BYTES = 3 * 1024 * 1024;
-const SECURITY_SEAL_MIN_EVIDENCE_FILES = 15;
-const SECURITY_SEAL_MAX_EVIDENCE_FILES = 20;
 const AUTH_IDLE_TIMEOUT_MINUTES = 15;
 const AUTH_IDLE_TIMEOUT_MS = AUTH_IDLE_TIMEOUT_MINUTES * 60 * 1000;
 const REPLACEMENT_YEARS = 10;
@@ -2518,7 +2516,7 @@ function isSecuritySealPart(part) {
   return desc.includes('sello de seguridad');
 }
 
-function mustCaptureSecuritySealEvidence() {
+function shouldOfferSecuritySealEvidence() {
   return getRegistroTargetType() === 'autotanque' && isSecuritySealPart(selectedPart);
 }
 
@@ -2533,17 +2531,17 @@ function updateSecuritySealEvidenceUI() {
   const input = document.getElementById('formSealEvidence');
   if (!wrap || !hint || !input) return;
 
-  const required = mustCaptureSecuritySealEvidence();
-  wrap.style.display = required ? 'block' : 'none';
+  const enabled = shouldOfferSecuritySealEvidence();
+  wrap.style.display = enabled ? 'block' : 'none';
   const filesCount = getSecuritySealEvidenceFiles().length;
 
-  if (required) {
-    hint.textContent = `Requerido para Sello de seguridad: adjunta entre ${SECURITY_SEAL_MIN_EVIDENCE_FILES} y ${SECURITY_SEAL_MAX_EVIDENCE_FILES} evidencias. Seleccionados: ${filesCount}.`;
+  if (enabled) {
+    hint.textContent = `Opcional para Sello de seguridad: adjunta las evidencias que necesites. Seleccionados: ${filesCount}.`;
     return;
   }
 
   input.value = '';
-  hint.textContent = 'Este requisito aplica solo al componente "Sello de seguridad" en autotanques.';
+  hint.textContent = 'Disponible solo para el componente "Sello de seguridad" en autotanques.';
 }
 
 function getStationPartsCount() {
@@ -3017,17 +3015,12 @@ async function saveComponentRecord() {
   }
   const atId = document.getElementById('formAT').value;
   if (!atId) return alert('Selecciona un autotanque.');
-  const sealEvidenceRequired = mustCaptureSecuritySealEvidence();
-  const sealEvidenceFiles = sealEvidenceRequired ? getSecuritySealEvidenceFiles() : [];
-  if (sealEvidenceRequired) {
-    if (sealEvidenceFiles.length < SECURITY_SEAL_MIN_EVIDENCE_FILES || sealEvidenceFiles.length > SECURITY_SEAL_MAX_EVIDENCE_FILES) {
-      return alert(`Para "Sello de seguridad" debes adjuntar entre ${SECURITY_SEAL_MIN_EVIDENCE_FILES} y ${SECURITY_SEAL_MAX_EVIDENCE_FILES} evidencias por pipa.`);
-    }
-  }
+  const sealEvidenceEnabled = shouldOfferSecuritySealEvidence();
+  const sealEvidenceFiles = sealEvidenceEnabled ? getSecuritySealEvidenceFiles() : [];
 
   const recId = genId();
   let notesWithEvidence = notesFinal;
-  if (sealEvidenceRequired) {
+  if (sealEvidenceFiles.length) {
     const evidenceResult = await attachSecuritySealEvidenceToAutotanque(atId, recId, sealEvidenceFiles);
     if (!evidenceResult.ok) return alert(evidenceResult.message || 'No se pudo guardar la evidencia de sellos.');
     const extraNote = `EVIDENCIA DE SELLOS: ${sealEvidenceFiles.length} archivo(s) adjuntos en expediente del autotanque.`;
