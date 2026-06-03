@@ -116,6 +116,7 @@ let selectedPart = null;
 let editingATId  = null;
 let currentDraftATId = null;
 let editingRecordId = null;
+let matrixEditingAtId = null;
 let editingEstacionId = null;
 let maintenanceEditingAtId = null;
 let maintenanceEditingEntryId = null;
@@ -1446,6 +1447,11 @@ function buildMatrixDateCell(dateValue, extraClass = '') {
   return `<td class="matrix-ok${cls}">${txt}</td>`;
 }
 
+function buildMatrixSealCell(hasSeals, extraClass = '') {
+  const cls = extraClass ? ` ${extraClass}` : '';
+  return `<td class="${hasSeals ? 'matrix-ok' : 'matrix-empty'}${cls}">${hasSeals ? 'SI' : 'NO'}</td>`;
+}
+
 function formatDate(d) {
   if (!d) return '—';
   const [y,m,dia] = d.split('-');
@@ -2322,6 +2328,20 @@ async function deleteRecordRemote(recordId) {
     .eq('id', recordId);
   if (error) {
     showSupabaseError('eliminar registro', error);
+    return false;
+  }
+  return true;
+}
+
+async function deleteRecordsRemote(recordIds, context = 'eliminar registros') {
+  const ids = [...new Set((Array.isArray(recordIds) ? recordIds : []).map(id => String(id || '').trim()).filter(Boolean))];
+  if (!ids.length || !runtimeUseSupabase) return true;
+  const { error } = await supabaseClient
+    .from(SUPABASE_TABLE_RECORDS)
+    .delete()
+    .in('id', ids);
+  if (error) {
+    showSupabaseError(context, error);
     return false;
   }
   return true;
@@ -3764,6 +3784,10 @@ function getLatestRecordsForUnit(atId) {
     .sort((a, b) => compareTextNatural(a.partNo, b.partNo));
 }
 
+function hasSecuritySealsForUnit(atId) {
+  return records.some(rec => rec.atId === atId && isSecuritySealRecord(rec));
+}
+
 function renderAutotanquesExpiryMatrix(units = []) {
   const head = document.getElementById('tableATMatrixHead');
   const body = document.getElementById('tableATMatrixBody');
@@ -3783,7 +3807,7 @@ function renderAutotanquesExpiryMatrix(units = []) {
       <th>Marca</th>
       <th>NOM-013<br>Vencimiento</th>
       <th>NOM-007-SESH-2010<br>Vencimiento</th>
-      ${parts.map(p => `<th>Fecha Vencimiento<br>${escapeHtml(p.desc)}</th>`).join('')}
+      ${parts.map(p => `<th>${isSecuritySealPart(p) ? 'Tiene sellos' : 'Fecha Vencimiento'}<br>${escapeHtml(p.desc)}</th>`).join('')}
     </tr>
   `;
   if (counter) counter.textContent = `${units.length} Autotanque(s) encontrado(s)`;
@@ -3796,7 +3820,9 @@ function renderAutotanquesExpiryMatrix(units = []) {
   body.innerHTML = units.map(unit => {
     const partMap = getLatestRecordByPartForUnit(unit.id);
     const brand = String(unit.marcaUnidad || '').trim();
+    const hasSecuritySeals = hasSecuritySealsForUnit(unit.id);
     const partCells = parts.map(part => {
+      if (isSecuritySealPart(part)) return buildMatrixSealCell(hasSecuritySeals);
       const rec = partMap.get(String(part.no));
       return buildMatrixDateCell(rec?.replDate || '');
     }).join('');
@@ -3809,7 +3835,7 @@ function renderAutotanquesExpiryMatrix(units = []) {
           <div class="matrix-actions table-actions">
             <div class="matrix-actions-icons">
               <button class="btn btn-secondary matrix-icon-btn action-btn" title="Ver" onclick="viewAutotanque('${unit.id}')">👁</button>
-              <button class="btn btn-secondary matrix-icon-btn action-btn" title="Editar registro de reemplazo" onclick="openMatrixRecordEditor('${unit.id}')">✏️</button>
+              <button class="btn btn-secondary matrix-icon-btn action-btn" title="Editar matriz de fechas" onclick="openMatrixRecordEditor('${unit.id}')">✏️</button>
               <button class="btn btn-danger matrix-icon-btn action-btn" title="Eliminar registro de reemplazo" onclick="deleteMatrixRecord('${unit.id}')">🗑</button>
             </div>
             <button class="btn btn-secondary matrix-maint-btn action-btn" title="Registrar mantenimiento" onclick="openMaintenanceModal('${unit.id}')">Mant.</button>
@@ -3871,6 +3897,7 @@ function getUnitsForReplMatrix() {
 
     if (filterStatus) {
       const hasStatus = PARTS.some(part => {
+        if (isSecuritySealPart(part)) return false;
         const rec = partMap.get(String(part.no));
         if (!rec || !rec.replDate) return filterStatus === 'sin-fecha';
         return statusKey(daysUntil(rec.replDate)) === filterStatus;
@@ -3883,6 +3910,7 @@ function getUnitsForReplMatrix() {
 
     if (replMatrixColorFilter) {
       const hasColor = PARTS.some(part => {
+        if (isSecuritySealPart(part)) return false;
         const rec = partMap.get(String(part.no));
         return recordMatchesMatrixColor(rec, replMatrixColorFilter);
       }) || normExpiryDates.some(dateValue => {
@@ -3962,7 +3990,7 @@ function renderReemplazosExpiryMatrix() {
       </th>
       ${parts.map(p => `
         <th class="matrix-part-col">
-          <span class="matrix-head-title">F. Vencimiento</span>
+          <span class="matrix-head-title">${isSecuritySealPart(p) ? 'Tiene sellos' : 'F. Vencimiento'}</span>
           <span class="matrix-head-sub">${escapeHtml(p.desc)}</span>
         </th>
       `).join('')}
@@ -3981,6 +4009,7 @@ function renderReemplazosExpiryMatrix() {
   body.innerHTML = units.map(unit => {
     const partMap = getLatestRecordByPartForUnit(unit.id);
     const brand = String(unit.marcaUnidad || '').trim();
+    const hasSecuritySeals = hasSecuritySealsForUnit(unit.id);
     const nom013Expiry = getNormExpiryDate(unit, 5, 'nom013');
     const nom007SeshExpiry = getNormExpiryDate(unit, 1, 'nom007sesh');
 
@@ -3993,6 +4022,7 @@ function renderReemplazosExpiryMatrix() {
     };
 
     const partCells = parts.map(part => {
+      if (isSecuritySealPart(part)) return buildMatrixSealCell(hasSecuritySeals, 'matrix-part-col');
       const rec = partMap.get(String(part.no));
       if (replMatrixColorFilter && !recordMatchesMatrixColor(rec, replMatrixColorFilter)) {
         return '<td class="matrix-part-col matrix-empty">—</td>';
@@ -4006,7 +4036,7 @@ function renderReemplazosExpiryMatrix() {
           <div class="matrix-actions table-actions">
             <div class="matrix-actions-icons">
               <button class="btn btn-secondary matrix-icon-btn action-btn" title="Ver" onclick="viewAutotanque('${unit.id}')">👁</button>
-              <button class="btn btn-secondary matrix-icon-btn action-btn" title="Editar registro de reemplazo" onclick="openMatrixRecordEditor('${unit.id}')">✏️</button>
+              <button class="btn btn-secondary matrix-icon-btn action-btn" title="Editar matriz de fechas" onclick="openMatrixRecordEditor('${unit.id}')">✏️</button>
               <button class="btn btn-danger matrix-icon-btn action-btn" title="Eliminar registro de reemplazo" onclick="deleteMatrixRecord('${unit.id}')">🗑</button>
             </div>
             <button class="btn btn-secondary matrix-maint-btn action-btn" title="Registrar mantenimiento" onclick="openMaintenanceModal('${unit.id}')">Mant.</button>
@@ -4031,6 +4061,211 @@ function renderReemplazosExpiryMatrix() {
   requestAnimationFrame(() => maintenanceFullCalendar?.updateSize?.());
 }
 
+function getNormFieldNames(normKey) {
+  if (normKey === 'nom013') return { month: 'nom013Mes', year: 'nom013Anio' };
+  if (normKey === 'nom007sesh') return { month: 'nom007SeshMes', year: 'nom007SeshAnio' };
+  return { month: 'dictamenNomMes', year: 'dictamenNomAnio' };
+}
+
+function applyNormExpiryToUnit(unit, normKey, expiryDate, yearsToAdd) {
+  const fields = getNormFieldNames(normKey);
+  const next = { ...unit };
+  if (!expiryDate) {
+    next[fields.month] = '';
+    next[fields.year] = '';
+    return next;
+  }
+  const expeditionDate = addYears(expiryDate, -Math.abs(Number(yearsToAdd) || 0));
+  const [year, month] = String(expeditionDate || '').split('-');
+  next[fields.month] = month || '';
+  next[fields.year] = year || '';
+  return next;
+}
+
+function renderMatrixDatesUnitSummary(unit) {
+  return `
+    <table>
+      <thead>
+        <tr>
+          <th>Planta</th><th>Tipo</th><th>NoEco</th><th>Placas</th><th>Capacidad</th><th>No. Serie Tanque</th><th>Marca</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>${escapeHtml(unit.plantaActual || '—')}</td>
+          <td>AT</td>
+          <td>${escapeHtml(unit.econ || '—')}</td>
+          <td>${escapeHtml(unit.placa || '—')}</td>
+          <td>${escapeHtml(unit.capacidad || '—')}</td>
+          <td>${escapeHtml(unit.serieTanque || '—')}</td>
+          <td>${escapeHtml(unit.marcaUnidad || '—')}</td>
+        </tr>
+      </tbody>
+    </table>
+  `;
+}
+
+function matrixDateInputHtml(id, value, attrs = '') {
+  return `<input type="date" id="${id}" value="${escapeHtml(value || '')}" ${attrs}>`;
+}
+
+function renderMatrixDateEditRow(label, desc, inputHtml, statusHtml = '') {
+  return `
+    <tr>
+      <td style="font-weight:700;color:var(--accent)">${escapeHtml(label)}</td>
+      <td>${escapeHtml(desc || '—')}</td>
+      <td>${inputHtml}</td>
+      <td>${statusHtml || '<span class="badge badge-none">—</span>'}</td>
+    </tr>
+  `;
+}
+
+function openMatrixDatesEditor(atId) {
+  const unit = autotanques.find(at => at.id === atId);
+  if (!unit) return alert('No se encontró el autotanque.');
+  const summary = document.getElementById('matrixDatesUnitSummary');
+  const body = document.getElementById('matrixDatesEditBody');
+  if (!summary || !body) return;
+
+  matrixEditingAtId = atId;
+  summary.innerHTML = renderMatrixDatesUnitSummary(unit);
+
+  const partMap = getLatestRecordByPartForUnit(atId);
+  const hasSecuritySeals = hasSecuritySealsForUnit(atId);
+  const parts = [...PARTS].sort((a, b) => compareTextNatural(a.no, b.no));
+  const rows = [
+    renderMatrixDateEditRow(
+      'F. Vencimiento',
+      'NOM-013',
+      matrixDateInputHtml('matrixEditNom013', getNormExpiryDate(unit, 5, 'nom013')),
+      statusBadge(daysUntil(getNormExpiryDate(unit, 5, 'nom013')))
+    ),
+    renderMatrixDateEditRow(
+      'F. Vencimiento',
+      'NOM-007-SESH-2010',
+      matrixDateInputHtml('matrixEditNom007Sesh', getNormExpiryDate(unit, 1, 'nom007sesh')),
+      statusBadge(daysUntil(getNormExpiryDate(unit, 1, 'nom007sesh')))
+    ),
+    ...parts.map(part => {
+      if (isSecuritySealPart(part)) {
+        return renderMatrixDateEditRow(
+          'Tiene sellos',
+          part.desc,
+          `<select id="matrixEditHasSeals" data-original="${hasSecuritySeals ? 'si' : 'no'}">
+            <option value="si" ${hasSecuritySeals ? 'selected' : ''}>SI</option>
+            <option value="no" ${!hasSecuritySeals ? 'selected' : ''}>NO</option>
+          </select>`,
+          `<span class="badge ${hasSecuritySeals ? 'badge-ok' : 'badge-none'}">${hasSecuritySeals ? 'SI' : 'NO'}</span>`
+        );
+      }
+      const rec = partMap.get(String(part.no));
+      const replDate = rec?.replDate || '';
+      const attrs = `data-matrix-repl-input="1" data-part-no="${escapeHtml(part.no)}" data-record-id="${escapeHtml(rec?.id || '')}" data-original="${escapeHtml(replDate)}"`;
+      return renderMatrixDateEditRow(
+        'F. Vencimiento',
+        part.desc,
+        matrixDateInputHtml(`matrixRepl_${part.no}`, replDate, attrs),
+        rec ? statusBadge(daysUntil(replDate)) : '<span class="badge badge-none">Sin registro</span>'
+      );
+    })
+  ];
+
+  body.innerHTML = rows.join('');
+  document.getElementById('modalMatrixDatesEdit')?.classList.add('open');
+}
+
+async function saveMatrixDatesEdit() {
+  if (!matrixEditingAtId) return alert('No hay autotanque seleccionado.');
+  const unitIndex = autotanques.findIndex(at => at.id === matrixEditingAtId);
+  if (unitIndex < 0) return alert('No se encontró el autotanque.');
+
+  const currentUnit = autotanques[unitIndex];
+  let nextUnit = applyNormExpiryToUnit(currentUnit, 'nom013', document.getElementById('matrixEditNom013')?.value || '', 5);
+  nextUnit = applyNormExpiryToUnit(nextUnit, 'nom007sesh', document.getElementById('matrixEditNom007Sesh')?.value || '', 1);
+  const unitChanged = ['nom013Mes', 'nom013Anio', 'nom007SeshMes', 'nom007SeshAnio']
+    .some(key => String(currentUnit[key] || '') !== String(nextUnit[key] || ''));
+
+  const recordsToUpsert = [];
+  const sealPart = PARTS.find(part => isSecuritySealPart(part));
+  const currentSealRecords = records.filter(rec => rec.atId === matrixEditingAtId && isSecuritySealRecord(rec));
+  const sealSelect = document.getElementById('matrixEditHasSeals');
+  const wantsSeals = sealSelect ? sealSelect.value === 'si' : currentSealRecords.length > 0;
+  const sealRecordIdsToDelete = !wantsSeals ? currentSealRecords.map(rec => rec.id) : [];
+  if (wantsSeals && !currentSealRecords.length && sealPart) {
+    recordsToUpsert.push({
+      id: genId(),
+      atId: matrixEditingAtId,
+      partNo: sealPart.no,
+      partPn: sealPart.pn,
+      partDesc: sealPart.desc,
+      partBrand: sealPart.brand,
+      fabDate: '',
+      instDate: '',
+      replDate: '',
+      serial: '',
+      brand: sealPart.brand || '',
+      notes: 'Sellos marcados como presentes desde matriz de vencimientos.',
+      createdAt: new Date().toISOString()
+    });
+  }
+
+  document.querySelectorAll('#matrixDatesEditBody input[data-matrix-repl-input="1"]').forEach(input => {
+    const partNo = String(input.dataset.partNo || '').trim();
+    const nextDate = String(input.value || '').trim();
+    const originalDate = String(input.dataset.original || '').trim();
+    if (nextDate === originalDate) return;
+
+    const part = PARTS.find(p => String(p.no) === partNo);
+    if (!part || isSecuritySealPart(part)) return;
+    const recordId = String(input.dataset.recordId || '').trim();
+    const currentRecord = recordId ? records.find(r => r.id === recordId) : null;
+    if (currentRecord) {
+      recordsToUpsert.push({ ...currentRecord, replDate: nextDate });
+      return;
+    }
+    if (!nextDate) return;
+    recordsToUpsert.push({
+      id: genId(),
+      atId: matrixEditingAtId,
+      partNo: part.no,
+      partPn: part.pn,
+      partDesc: part.desc,
+      partBrand: part.brand,
+      fabDate: '',
+      instDate: '',
+      replDate: nextDate,
+      serial: '',
+      brand: part.brand || '',
+      notes: 'Fecha capturada desde matriz de vencimientos.',
+      createdAt: new Date().toISOString()
+    });
+  });
+
+  if (!unitChanged && !recordsToUpsert.length && !sealRecordIdsToDelete.length) {
+    return alert('No hay cambios para guardar.');
+  }
+  if (sealRecordIdsToDelete.length && !confirm(`¿Marcar "NO" en Tiene sellos? Se eliminarán ${sealRecordIdsToDelete.length} registro(s) de sellos de este autotanque.`)) return;
+  if (unitChanged && !(await upsertUnitRemote(nextUnit))) return;
+  if (recordsToUpsert.length && !(await upsertRecordsRemote(recordsToUpsert, 'actualizar fechas desde matriz de vencimientos'))) return;
+  if (sealRecordIdsToDelete.length && !(await deleteRecordsRemote(sealRecordIdsToDelete, 'actualizar sellos desde matriz de vencimientos'))) return;
+
+  if (unitChanged) autotanques[unitIndex] = nextUnit;
+  if (sealRecordIdsToDelete.length) {
+    const removeSet = new Set(sealRecordIdsToDelete);
+    records = records.filter(rec => !removeSet.has(rec.id));
+  }
+  recordsToUpsert.forEach(updated => {
+    const idx = records.findIndex(r => r.id === updated.id);
+    if (idx >= 0) records[idx] = updated;
+    else records.push(updated);
+  });
+  save();
+  await closeModal('modalMatrixDatesEdit');
+  renderAutotanques();
+  renderReemplazos();
+  renderDashboard();
+}
+
 function getPreferredRecordForUnit(atId) {
   const unitRecords = getLatestRecordsForUnit(atId)
     .map(r => ({ ...r, days: daysUntil(r.replDate) }));
@@ -4046,9 +4281,7 @@ function getPreferredRecordForUnit(atId) {
 }
 
 function openMatrixRecordEditor(atId) {
-  const rec = getPreferredRecordForUnit(atId);
-  if (!rec) return alert('Este autotanque no tiene registros de reemplazo para editar.');
-  openRecordEditor(rec.id);
+  openMatrixDatesEditor(atId);
 }
 
 async function deleteMatrixRecord(atId) {
@@ -5094,6 +5327,9 @@ async function closeModal(id) {
   }
   if (id === 'modalRecordEdit') {
     editingRecordId = null;
+  }
+  if (id === 'modalMatrixDatesEdit') {
+    matrixEditingAtId = null;
   }
   if (id === 'modalEstacionEdit') {
     editingEstacionId = null;

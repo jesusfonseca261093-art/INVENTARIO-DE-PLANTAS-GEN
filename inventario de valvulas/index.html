@@ -928,6 +928,37 @@
   </div>
 </div>
 
+<!-- ── MODAL: EDITAR MATRIZ DE VENCIMIENTOS ─────────── -->
+<div class="modal-overlay" id="modalMatrixDatesEdit">
+  <div class="modal modal-wide">
+    <div class="modal-header">
+      <h3>EDITAR MATRIZ DE VENCIMIENTOS</h3>
+      <button class="modal-close" onclick="closeModal('modalMatrixDatesEdit')">×</button>
+    </div>
+    <div class="modal-body">
+      <div id="matrixDatesUnitSummary" class="table-wrap" style="margin-bottom:12px"></div>
+      <p class="text-muted" style="margin-bottom:10px">Las fechas NOM se guardan por mes/año. Sello de Seguridad solo indica si la unidad tiene sellos registrados.</p>
+      <div class="table-wrap" style="max-height:420px;overflow:auto">
+        <table>
+          <thead>
+            <tr>
+              <th>CAMPO</th>
+              <th>DESCRIPCIÓN</th>
+              <th>VALOR / F. VENCIMIENTO</th>
+              <th>ESTADO</th>
+            </tr>
+          </thead>
+          <tbody id="matrixDatesEditBody"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modalMatrixDatesEdit')">CANCELAR</button>
+      <button class="btn btn-primary" onclick="saveMatrixDatesEdit()">GUARDAR CAMBIOS</button>
+    </div>
+  </div>
+</div>
+
 <!-- ── MODAL: VER ESTACIÓN ─────────── -->
 <div class="modal-overlay" id="modalEstacionView">
   <div class="modal">
