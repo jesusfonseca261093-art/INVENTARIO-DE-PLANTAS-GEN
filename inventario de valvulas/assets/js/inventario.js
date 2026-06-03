@@ -874,7 +874,7 @@ function buildAuditSnapshot() {
         nom007SeshAnio: String(at?.nom007SeshAnio || '').trim(),
         registroSener: String(at?.registroSener || '').trim(),
         noRegTagSener: String(at?.noRegTagSener || '').trim(),
-        expedienteCount: Array.isArray(at?.expediente) ? at.expediente.length : 0
+        expedienteCount: getVisibleExpedienteDocs(at?.expediente).length
       }
     };
   });
@@ -1681,6 +1681,18 @@ function normalizeExpediente(raw) {
     }
   }
   return [];
+}
+
+function isSecuritySealEvidenceDoc(doc) {
+  const text = normalizeMatchText([
+    doc?.name,
+    doc?.fileName
+  ].filter(Boolean).join(' '));
+  return text.includes('evidencia sello seguridad') || text.includes('evidencia de sellos');
+}
+
+function getVisibleExpedienteDocs(expedienteDocs) {
+  return normalizeExpediente(expedienteDocs).filter(doc => !isSecuritySealEvidenceDoc(doc));
 }
 
 function sanitizeStorageFileName(fileName) {
@@ -3071,12 +3083,13 @@ function clearForm() {
 function renderDraftExpedienteList() {
   const box = document.getElementById('expedienteDraftList');
   if (!box) return;
-  if (!draftExpedienteDocs.length) {
+  const visibleDocs = getVisibleExpedienteDocs(draftExpedienteDocs);
+  if (!visibleDocs.length) {
     box.innerHTML = '<p class="text-muted" style="padding:10px 12px">Sin documentos en el expediente.</p>';
     return;
   }
 
-  box.innerHTML = draftExpedienteDocs.map(doc => `
+  box.innerHTML = visibleDocs.map(doc => `
     <div class="expediente-item">
       <div class="expediente-meta">
         <b>${escapeHtml(doc.name || doc.fileName || 'Documento')}</b>
@@ -3267,7 +3280,7 @@ async function openExpedienteDoc(atId, docId) {
 }
 
 function renderExpedienteTable(expedienteDocs, atId) {
-  const docs = Array.isArray(expedienteDocs) ? expedienteDocs : [];
+  const docs = getVisibleExpedienteDocs(expedienteDocs);
   if (!docs.length) {
     return '<p class="text-muted">Sin documentos en expediente.</p>';
   }
@@ -3665,12 +3678,12 @@ function renderAutotanques() {
     const expanded = expandedAutotanquePlantKey === plantKey;
     const unitsSorted = sortUnitsByMode(units, orderMode);
 
-    const totalRecords = unitsSorted.reduce((acc, at) => acc + records.filter(r => r.atId === at.id).length, 0);
+    const totalRecords = unitsSorted.reduce((acc, at) => acc + getLatestRecordsForUnit(at.id).length, 0);
     const plantSummary = `${unitsSorted.length} unidad(es) | ${totalRecords} componente(s)`;
 
     const unitRows = expanded ? unitsSorted.map(at => {
-      const atRecs = records.filter(r => r.atId === at.id);
-      const expedienteDocs = normalizeExpediente(at.expediente);
+      const atRecs = getLatestRecordsForUnit(at.id);
+      const expedienteDocs = getVisibleExpedienteDocs(at.expediente);
       const expedienteCount = expedienteDocs.length;
       const withDate = atRecs.filter(r => r.replDate);
       const vencidos = withDate.filter(r => daysUntil(r.replDate) < 0).length;
@@ -3681,7 +3694,7 @@ function renderAutotanques() {
       else if (criticos > 0) estado = `<span class="badge badge-warn">${criticos} CRÍTICO(S)</span>`;
       else if (!atRecs.length) estado = '<span class="badge badge-none">SIN REGISTROS</span>';
 
-      const pct = atRecs.length ? Math.round(atRecs.length/PARTS.length*100) : 0;
+      const pct = atRecs.length ? Math.min(100, Math.round(atRecs.length/PARTS.length*100)) : 0;
       const pctClass = pct < 50 ? 'danger' : pct < 80 ? 'warn' : '';
       const expedienteEstado = expedienteCount
         ? `<span class="badge badge-ok">CAPTURADO (${expedienteCount})</span>`
@@ -3744,6 +3757,11 @@ function getLatestRecordByPartForUnit(atId) {
       if (nextDate >= curDate) byPart.set(key, rec);
     });
   return byPart;
+}
+
+function getLatestRecordsForUnit(atId) {
+  return Array.from(getLatestRecordByPartForUnit(atId).values())
+    .sort((a, b) => compareTextNatural(a.partNo, b.partNo));
 }
 
 function renderAutotanquesExpiryMatrix(units = []) {
@@ -4014,8 +4032,7 @@ function renderReemplazosExpiryMatrix() {
 }
 
 function getPreferredRecordForUnit(atId) {
-  const unitRecords = records
-    .filter(r => r.atId === atId)
+  const unitRecords = getLatestRecordsForUnit(atId)
     .map(r => ({ ...r, days: daysUntil(r.replDate) }));
   if (!unitRecords.length) return null;
 
@@ -4166,7 +4183,7 @@ function viewAutotanque(id) {
   const atRecs = records
     .filter(r => r.atId === id)
     .sort((a, b) => compareTextNatural(a.partNo, b.partNo));
-  const expedienteDocs = normalizeExpediente(at.expediente);
+  const expedienteDocs = getVisibleExpedienteDocs(at.expediente);
   const partsSorted = [...PARTS].sort((a, b) => compareTextNatural(a.no, b.no));
   const capturedPartCount = partsSorted.filter(part => atRecs.some(r => partNoContains(r.partNo, part.no))).length;
 
@@ -4244,11 +4261,13 @@ function renderReemplazos() {
   const filterStatus = document.getElementById('filterReplStatus')?.value || '';
   const searchTerm   = (document.getElementById('searchRepl')?.value || '').trim().toLowerCase();
 
-  let rows = records.map(r => ({
-    ...r,
-    at: autotanques.find(a => a.id === r.atId),
-    days: daysUntil(r.replDate)
-  })).filter(r => r.at);
+  let rows = autotanques.flatMap(at =>
+    getLatestRecordsForUnit(at.id).map(r => ({
+      ...r,
+      at,
+      days: daysUntil(r.replDate)
+    }))
+  );
 
   if (filterAt)     rows = rows.filter(r => r.atId === filterAt);
   if (filterStatus) rows = rows.filter(r => statusKey(r.days) === filterStatus);
@@ -4536,7 +4555,6 @@ function buildDashboardContext() {
   const bounds = getDashboardDateBounds(filters);
   const term = filters.searchNorm;
   const type = filters.type || 'todos';
-  const atMap = new Map(autotanques.map(at => [at.id, at]));
   const stMap = new Map(normalizeEstaciones(estaciones).map(st => [st.id, st]));
 
   const matchTerm = (...values) => {
@@ -4556,10 +4574,8 @@ function buildDashboardContext() {
     return matchTerm(st.planta, st.estacion, st.bomba, (st.componentes || []).join(' '));
   });
 
-  const autoComponentRowsAll = records
-    .map(rec => {
-      const at = atMap.get(rec.atId);
-      if (!at) return null;
+  const autoComponentRowsAll = autotanques
+    .flatMap(at => getLatestRecordsForUnit(at.id).map(rec => {
       const plant = normalizePlantName(at.plantaActual || '') || 'SIN PLANTA';
       return {
         id: rec.id,
@@ -4572,8 +4588,7 @@ function buildDashboardContext() {
         days: daysUntil(rec.replDate),
         status: statusKey(daysUntil(rec.replDate))
       };
-    })
-    .filter(Boolean)
+    }))
     .filter(row => {
       if (filters.plant && row.plant !== filters.plant) return false;
       return matchTerm(
@@ -5126,12 +5141,13 @@ function exportVencidosCSV() {
   const rows = [
     ['NO_ECONOMICO','PLACA','PIEZA_NO','DESCRIPCION','F_FABRICACION','F_REEMPLAZO','DIAS_RESTANTES','ESTADO']
   ];
-  records.forEach(r => {
-    const at = autotanques.find(a => a.id === r.atId);
-    const d = daysUntil(r.replDate);
-    if (d !== null && d <= 90) {
-      rows.push([at?.econ||'',at?.placa||'',r.partNo,r.partDesc,r.fabDate,r.replDate,d,statusKey(d).toUpperCase()]);
-    }
+  autotanques.forEach(at => {
+    getLatestRecordsForUnit(at.id).forEach(r => {
+      const d = daysUntil(r.replDate);
+      if (d !== null && d <= 90) {
+        rows.push([at?.econ||'',at?.placa||'',r.partNo,r.partDesc,r.fabDate,r.replDate,d,statusKey(d).toUpperCase()]);
+      }
+    });
   });
   downloadCSV('vencimientos_criticos_NOM007.csv', rows);
 }
