@@ -128,6 +128,20 @@
   .tab-btn:hover:not(.active) { color: var(--text); }
   .tab-panel { display: none; }
   .tab-panel.active { display: block; }
+  .calibration-plan-embed {
+    width: 100%;
+    height: calc(100vh - 190px);
+    min-height: 720px;
+    overflow: hidden;
+    border-radius: 8px;
+  }
+  .calibration-plan-embed iframe {
+    width: 100%;
+    height: 100%;
+    display: block;
+    border: 0;
+    background: #f8fafc;
+  }
 
   /* -- Cards --------------------------------- */
   .card {
@@ -1056,6 +1070,11 @@ td.matrix-sticky-col.table-actions-cell {
       border-color: var(--accent);
       background: rgba(3, 105, 161, .08);
     }
+    .calibration-plan-embed {
+      height: calc(100dvh - 118px);
+      min-height: 560px;
+      border-radius: 6px;
+    }
     .table-wrap.table-freeze-y { max-height: 56vh; }
     .matrix-wrap { max-height: 56vh; }
     .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
@@ -1248,13 +1267,13 @@ td.matrix-sticky-col.table-actions-cell {
 
     .tabs {
       display: flex;
-      flex-wrap: wrap;
+      flex-wrap: nowrap;
       align-items: center;
       justify-content: flex-start;
       gap: clamp(6px, .6vw, 12px);
-      row-gap: clamp(4px, .45vw, 10px);
       margin-bottom: clamp(14px, 1vw, 22px);
-      overflow: visible;
+      overflow-x: auto;
+      overflow-y: hidden;
     }
 
     .tab-btn,

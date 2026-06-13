@@ -53,6 +53,7 @@
     <button class="tab-btn" onclick="switchTab('autotanques')">🚛 AUTOTANQUES</button>
     <button class="tab-btn" onclick="switchTab('estaciones')">⛽ ESTACIONES DE CARBURACIÓN</button>
     <button class="tab-btn" onclick="switchTab('registro')">➕ REGISTRAR COMPONENTE</button>
+    <button class="tab-btn" onclick="switchTab('factores-calibraciones')">🧮 FACTORES DE CALIBRACIONES</button>
     <button class="tab-btn" onclick="switchTab('reemplazos')">⚠️ PRÓXIMOS REEMPLAZOS</button>
     <button class="ext-tab-btn" id="tabBtnProgramacion" onclick="openProgramacionTab()">📅 PROGRAMACIÓN</button>
     <button class="ext-tab-btn" id="tabBtnCronograma" onclick="openAdvancedTab('cronograma')">📈 CRONOGRAMA</button>
@@ -334,6 +335,13 @@
         </div>
         <p class="text-muted mt-12">NOM-EM-007-ASEA-2025: regla general de sustitución a 10 años. Excepción: Manguera De  Sumistro Modelo 20BHB con máximo 5 años desde fabricación.</p>
       </div>
+    </div>
+  </div>
+
+  <!-- ── FACTORES DE CALIBRACIONES ───────── -->
+  <div id="tab-factores-calibraciones" class="tab-panel">
+    <div class="calibration-plan-embed">
+      <iframe src="assets/plan_de_calibraciones.html" title="Factores de Calibraciones"></iframe>
     </div>
   </div>
 

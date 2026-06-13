@@ -2511,7 +2511,7 @@ async function replaceRemoteData(allUnits, allRecords, allPartImages = null, all
 // ── TABS ──────────────────────────────────────────────────────────────
 function switchTab(id) {
   document.querySelectorAll('.tab-btn').forEach((b,i) => {
-    const tabs = ['dashboard','autotanques','estaciones','registro','reemplazos','exportar'];
+    const tabs = ['dashboard','autotanques','estaciones','registro','factores-calibraciones','reemplazos','exportar'];
     b.classList.toggle('active', tabs[i] === id);
   });
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));

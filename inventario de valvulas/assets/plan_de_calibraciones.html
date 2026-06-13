@@ -1,0 +1,1662 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Calibración Mensual de Factores</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts (Inter) -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+    }
+    /* Estilo de scrollbars personalizados */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #f1f5f9;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+    html, body {
+      width: 100%;
+      overflow-x: hidden;
+    }
+    .header-action-btn {
+      padding: .55rem .9rem !important;
+      border-radius: .7rem !important;
+      font-size: .88rem !important;
+      line-height: 1.15 !important;
+    }
+    .header-action-btn svg {
+      width: 1rem !important;
+      height: 1rem !important;
+    }
+    .compact-data-table {
+      width: 100%;
+      table-layout: fixed;
+    }
+    .compact-data-table th,
+    .compact-data-table td {
+      padding: .65rem .75rem;
+      line-height: 1.25;
+      vertical-align: middle;
+      text-overflow: ellipsis;
+      overflow: hidden;
+      white-space: nowrap;
+    }
+    .compact-data-table th:first-child,
+    .compact-data-table td:first-child {
+      min-width: 120px;
+      width: 120px;
+    }
+    .compact-data-table th:nth-child(2),
+    .compact-data-table td:nth-child(2) {
+      min-width: 110px;
+      width: 110px;
+    }
+    .compact-data-table th:not(:first-child):not(:nth-child(2)),
+    .compact-data-table td:not(:first-child):not(:nth-child(2)) {
+      width: 90px;
+      max-width: 110px;
+    }
+    @media (max-width: 640px) {
+      .mobile-page {
+        padding: 12px !important;
+      }
+      .mobile-title {
+        align-items: flex-start !important;
+        font-size: 1.35rem !important;
+        line-height: 1.15 !important;
+      }
+      .mobile-title svg {
+        width: 1.5rem !important;
+        height: 1.5rem !important;
+        margin-top: .1rem;
+        flex: 0 0 auto;
+      }
+      .mobile-actions {
+        width: 100%;
+        flex-direction: column;
+      }
+      .mobile-actions button {
+        width: 100%;
+        justify-content: center;
+      }
+      .mobile-card-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        gap: .5rem !important;
+        margin-bottom: 1rem !important;
+      }
+      .metric-card,
+      .mobile-card-grid > div {
+        min-height: 74px;
+        padding: .6rem .65rem !important;
+        border-radius: .85rem !important;
+      }
+      .metric-label,
+      .mobile-card-grid > div > span:first-child {
+        font-size: 10px !important;
+        line-height: 1.1 !important;
+        letter-spacing: .055em !important;
+      }
+      .metric-value,
+      #metricTotal,
+      #metricCalibrados,
+      #metricPendientes {
+        font-size: 1.35rem !important;
+        line-height: 1 !important;
+      }
+      .metric-progress {
+        height: .45rem !important;
+        margin-top: .55rem !important;
+      }
+      .metric-subtext,
+      #metricTotal + span,
+      #metricCalibrados + span,
+      #metricPendientes + span {
+        display: none;
+      }
+      .mobile-segmented,
+      .mobile-view-controls {
+        width: 100%;
+        overflow-x: auto;
+        padding-bottom: 2px;
+      }
+      .mobile-segmented button,
+      .mobile-view-controls button {
+        flex: 0 0 auto;
+        white-space: nowrap;
+      }
+      .mobile-filter-actions {
+        justify-content: flex-start !important;
+      }
+      .mobile-table-scroll table {
+        min-width: auto;
+        width: 100%;
+        table-layout: fixed;
+      }
+      .mobile-table-scroll table.matrix-plan-table {
+        min-width: auto;
+      }
+      .mobile-table-scroll th,
+      .mobile-table-scroll td {
+        padding: .55rem .65rem;
+        line-height: 1.2;
+      }
+      .mobile-table-scroll th:first-child,
+      .mobile-table-scroll td:first-child {
+        min-width: 120px;
+        max-width: 150px;
+        width: 150px;
+      }
+      .mobile-table-scroll th:nth-child(2),
+      .mobile-table-scroll td:nth-child(2) {
+        min-width: 90px;
+        max-width: 110px;
+        width: 110px;
+      }
+      .mobile-table-scroll th:not(:first-child):not(:nth-child(2)),
+      .mobile-table-scroll td:not(:first-child):not(:nth-child(2)) {
+        width: 48px;
+        max-width: 56px;
+        white-space: normal;
+      }
+      .matrix-equipo-col,
+      .matrix-equipo-cell {
+        width: 88px;
+        max-width: 88px;
+      }
+      .matrix-planta-col,
+      .matrix-planta-cell {
+        width: 58px;
+        max-width: 58px;
+      }
+      .matrix-month-col {
+        width: 41px;
+        max-width: 41px;
+        font-size: 10px !important;
+      }
+      .mobile-plan-list {
+        display: grid;
+        gap: .75rem;
+      }
+      .mobile-equipment-card {
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 1rem;
+        padding: .85rem;
+        box-shadow: 0 1px 2px rgba(15, 23, 42, .04);
+      }
+      .mobile-month-grid {
+        display: grid;
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+        gap: .3rem;
+      }
+      .mobile-month-cell {
+        min-height: 46px;
+        border-radius: .65rem;
+        padding: .3rem .15rem;
+        text-align: center;
+        font-size: 10px;
+        line-height: 1.1;
+      }
+      .mobile-month-cell span,
+      .mobile-month-cell strong {
+        display: block;
+      }
+      .mobile-month-cell strong {
+        margin-top: .2rem;
+        font-size: 9px;
+      }
+      #modalCalibracion,
+      #modalEquipoEdit {
+        align-items: flex-end !important;
+        padding: .75rem !important;
+      }
+      #modalCalibracion > div,
+      #modalEquipoEdit > div {
+        max-height: 92dvh;
+        overflow-y: auto;
+        border-radius: 1rem !important;
+      }
+      .mobile-form-grid {
+        grid-template-columns: 1fr !important;
+      }
+      .mobile-form-actions {
+        flex-direction: column-reverse;
+      }
+      .mobile-form-actions button {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen">
+
+  <div class="mobile-page p-4 md:p-8 max-w-7xl mx-auto">
+    
+    <!-- Header Corporativo -->
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+      <div>
+      </div>
+      <div class="mobile-actions flex gap-2">
+        <button id="btnExport" class="header-action-btn bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold py-2.5 px-4 rounded-xl shadow-sm flex items-center gap-2 transition-all">
+          <svg class="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"></path>
+          </svg>
+          Exportar Excel
+        </button>
+        <button id="btnNewCal" class="header-action-btn bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2.5 px-5 rounded-xl shadow-lg shadow-indigo-100 flex items-center gap-2 transition-all transform hover:-translate-y-0.5 active:translate-y-0">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"></path>
+          </svg>
+          Registrar Factor del Mes
+        </button>
+      </div>
+    </div>
+
+    <!-- Tarjetas de Métricas Inteligentes (Mes de Evaluación: Junio) -->
+    <div class="mobile-card-grid grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+      <div class="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between">
+        <span class="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+          Equipos en Catálogo
+        </span>
+        <div class="flex items-baseline gap-2 mt-2">
+          <span id="metricTotal" class="text-3xl font-extrabold text-slate-800">0</span>
+          <span class="text-xs text-slate-400">Total</span>
+        </div>
+      </div>
+      <div class="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between">
+        <span class="text-xs font-bold uppercase tracking-wider text-emerald-500 flex items-center gap-1.5">
+          Calibrados (Junio)
+        </span>
+        <div class="flex items-baseline gap-2 mt-2">
+          <span id="metricCalibrados" class="text-3xl font-extrabold text-emerald-600">0</span>
+          <span class="text-xs text-emerald-500">✔ Listos</span>
+        </div>
+      </div>
+      <div class="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between">
+        <span class="text-xs font-bold uppercase tracking-wider text-rose-500 flex items-center gap-1.5">
+          Pendientes (Junio)
+        </span>
+        <div class="flex items-baseline gap-2 mt-2">
+          <span id="metricPendientes" class="text-3xl font-extrabold text-rose-600">0</span>
+          <span class="text-xs text-rose-500">⚠ Requerido</span>
+        </div>
+      </div>
+      <div class="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between">
+        <span class="text-xs font-bold uppercase tracking-wider text-indigo-500 flex items-center gap-1.5">
+          Avance del Mes
+        </span>
+        <div class="w-full bg-slate-100 h-2.5 rounded-full mt-3 overflow-hidden">
+          <div id="metricProgressBar" class="bg-indigo-600 h-full rounded-full transition-all duration-500" style="width: 0%"></div>
+        </div>
+        <span id="metricProgressText" class="text-xs font-extrabold text-indigo-700 mt-1">0% Completado</span>
+      </div>
+    </div>
+
+    <!-- Controles de Filtro y Modos de Vista -->
+    <div class="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm mb-6">
+      <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        
+        <!-- Categorías (Filtro por Tipo) -->
+        <div class="mobile-segmented flex bg-slate-100 p-1 rounded-xl w-full sm:w-fit">
+          <button id="tabEstaciones" onclick="setActiveTab('estaciones')" class="flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm transition-all bg-white text-indigo-700 shadow-sm">
+            Estaciones
+          </button>
+          <button id="tabAutotanques" onclick="setActiveTab('autotanques')" class="flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm transition-all text-slate-500 hover:text-slate-800">
+            Autotanques
+          </button>
+          <button id="tabTodos" onclick="setActiveTab('all')" class="flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm transition-all text-slate-500 hover:text-slate-800">
+            Todos
+          </button>
+        </div>
+
+        <!-- Modos de Vista -->
+        <div class="mobile-view-controls flex flex-wrap items-center gap-2">
+          <span class="text-xs text-slate-400 font-bold uppercase mr-1">Vistas de Plan:</span>
+          <button id="viewPlanAnual" onclick="setViewMode('plan_anual')" class="flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-xs border transition-all bg-indigo-50 border-indigo-200 text-indigo-700">
+            Matriz Mensual Ene-Dic
+          </button>
+          <button id="viewJerarquia" onclick="setViewMode('jerarquia')" class="flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-xs border transition-all bg-white text-slate-600 hover:bg-slate-50">
+            Agrupado por Planta
+          </button>
+          <button id="viewUnificada" onclick="setViewMode('unificada')" class="flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-xs border transition-all bg-white text-slate-600 hover:bg-slate-50">
+            Tabla Maestra
+          </button>
+        </div>
+      </div>
+
+      <!-- Barra de Búsqueda y Selección Fina -->
+      <div class="mt-4 pt-4 border-t border-slate-100 grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="relative">
+          <input 
+            type="text" 
+            id="inputSearch" 
+            placeholder="Buscar por ID de equipo o bomba..." 
+            class="pl-4 pr-4 py-2.5 w-full border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
+          />
+        </div>
+
+        <div>
+          <select 
+            id="selectPlanta" 
+            class="py-2.5 px-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none w-full text-sm text-slate-600 bg-white"
+          >
+            <option value="TODAS">📍 Todas las Plantas / Ubicaciones</option>
+          </select>
+        </div>
+
+        <div class="mobile-filter-actions flex items-center justify-end">
+          <button 
+            id="btnClearFilters" 
+            class="hidden text-xs text-indigo-600 hover:text-indigo-800 font-bold flex items-center gap-1"
+          >
+            Limpiar filtros de búsqueda
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Contenedor Principal de Datos -->
+    <div id="dataContainer"></div>
+
+  </div>
+
+  <!-- MODAL DE NUEVA CALIBRACIÓN MENSUAL -->
+  <div id="modalCalibracion" class="hidden fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+    <div class="bg-white p-6 rounded-2xl w-full max-w-md space-y-4 shadow-2xl border border-slate-100">
+      <div class="flex justify-between items-center border-b pb-3">
+        <h2 class="text-xl font-extrabold text-slate-800">Registrar Calibración</h2>
+        <button id="btnModalClose" class="text-slate-400 hover:text-slate-600">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"></path>
+          </svg>
+        </button>
+      </div>
+
+      <form id="formCalibracion" class="space-y-3">
+        <div>
+          <label class="text-xs font-bold uppercase tracking-wider text-slate-500 block mb-1">Tipo de Equipo</label>
+          <select id="formTipo" class="w-full border border-slate-200 p-2.5 rounded-xl bg-slate-50 font-medium text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500">
+            <option value="estaciones">Estación de Carburación</option>
+            <option value="autotanques">Autotanque</option>
+          </select>
+        </div>
+
+        <div class="mobile-form-grid grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="text-xs font-bold uppercase tracking-wider text-slate-500 block mb-1">ID Equipo</label>
+            
+            <input required id="formId" placeholder="Ej. QI-2417 o 9001" class="w-full border border-slate-200 p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500" />
+          </div>
+          <div>
+            <label class="text-xs font-bold uppercase tracking-wider text-slate-500 block mb-1">Planta</label>
+            <input required id="formPlanta" placeholder="Ej. GALERAS o QUERETARO" class="w-full border border-slate-200 p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500" />
+          </div>
+        </div>
+
+        <div>
+          <label class="text-xs font-bold uppercase tracking-wider text-slate-500 block mb-1">Descripción / Bomba</label>
+          <input id="formNombre" placeholder="Ej. BOMBA 1 o BP05" class="w-full border border-slate-200 p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500" />
+        </div>
+
+        <div class="mobile-form-grid grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="text-xs font-bold uppercase tracking-wider text-slate-500 block mb-1">Factor Calibrado</label>
+            <input required type="number" id="formFactor" placeholder="Ej. 5430" class="w-full border border-slate-200 p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500" />
+          </div>
+          <div>
+            <label class="text-xs font-bold uppercase tracking-wider text-slate-500 block mb-1">Fecha</label>
+            <input required type="date" id="formFecha" class="w-full border border-slate-200 p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500" />
+          </div>
+        </div>
+
+        <div class="mobile-form-actions pt-4 flex gap-2">
+          <button type="button" id="btnFormCancel" class="w-1/2 border border-slate-200 text-slate-500 py-3 rounded-xl hover:bg-slate-50 font-bold transition-all text-sm">
+            Cancelar
+          </button>
+          <button type="submit" class="w-1/2 bg-indigo-600 text-white py-3 rounded-xl hover:bg-indigo-700 font-bold transition-all text-sm shadow-md shadow-indigo-100">
+            Guardar Registro
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Lógica de Datos y Renderizado -->
+  <!-- MODAL DE EDICION DE EQUIPO -->
+  <div id="modalEquipoEdit" class="hidden fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+    <div class="bg-white p-6 rounded-2xl w-full max-w-md space-y-4 shadow-2xl border border-slate-100">
+      <div class="flex justify-between items-center border-b pb-3">
+        <h2 class="text-xl font-extrabold text-slate-800">Editar Equipo</h2>
+        <button id="btnEquipoEditClose" class="text-slate-400 hover:text-slate-600">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"></path>
+          </svg>
+        </button>
+      </div>
+
+      <form id="formEquipoEdit" class="space-y-3">
+        <input type="hidden" id="editOriginalTipo">
+        <input type="hidden" id="editOriginalId">
+        <input type="hidden" id="editOriginalPlanta">
+
+        <div>
+          <label class="text-xs font-bold uppercase tracking-wider text-slate-500 block mb-1">Tipo de Equipo</label>
+          <select id="editTipo" class="w-full border border-slate-200 p-2.5 rounded-xl bg-slate-50 font-medium text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500">
+            <option value="estaciones">Estacion de Carburacion</option>
+            <option value="autotanques">Autotanque</option>
+          </select>
+        </div>
+
+        <div class="mobile-form-grid grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="text-xs font-bold uppercase tracking-wider text-slate-500 block mb-1">ID Equipo</label>
+            <input required id="editId" class="w-full border border-slate-200 p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500">
+          </div>
+          <div>
+            <label class="text-xs font-bold uppercase tracking-wider text-slate-500 block mb-1">Planta</label>
+            <input required id="editPlanta" class="w-full border border-slate-200 p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500">
+          </div>
+        </div>
+
+        <div>
+          <label class="text-xs font-bold uppercase tracking-wider text-slate-500 block mb-1">Descripcion / Bomba</label>
+          <input id="editNombre" class="w-full border border-slate-200 p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500">
+        </div>
+
+        <p class="text-xs text-slate-400">
+          Al guardar se conserva todo el historial de factores del equipo.
+        </p>
+
+        <div class="mobile-form-actions pt-4 flex gap-2">
+          <button type="button" id="btnEquipoEditCancel" class="w-1/2 border border-slate-200 text-slate-500 py-3 rounded-xl hover:bg-slate-50 font-bold transition-all text-sm">
+            Cancelar
+          </button>
+          <button type="submit" class="w-1/2 bg-indigo-600 text-white py-3 rounded-xl hover:bg-indigo-700 font-bold transition-all text-sm shadow-md shadow-indigo-100">
+            Guardar Cambios
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    // Meses del año
+    const MESES = [
+      { id: '01', nombre: 'Ene' },
+      { id: '02', nombre: 'Feb' },
+      { id: '03', nombre: 'Mar' },
+      { id: '04', nombre: 'Abr' },
+      { id: '05', nombre: 'May' },
+      { id: '06', nombre: 'Jun' },
+      { id: '07', nombre: 'Jul' },
+      { id: '08', nombre: 'Ago' },
+      { id: '09', nombre: 'Sep' },
+      { id: '10', nombre: 'Oct' },
+      { id: '11', nombre: 'Nov' },
+      { id: '12', nombre: 'Dic' }
+    ];
+
+    // Estructura de catálogo precargada con TODOS tus datos reales de estaciones y autotanques
+    let DB = {
+      estaciones: {
+        'QUERETARO': [
+          { id: '9008', nombre: 'B021', historial: [{ fecha: '2026-04-01', factor: 5623 }] },
+          { id: '9009', nombre: 'B022', historial: [{ fecha: '2026-04-02', factor: 5641 }] },
+          { id: '9010', nombre: 'B023', historial: [{ fecha: '2026-04-03', factor: 5940 }] },
+          { id: '9011', nombre: 'B024', historial: [{ fecha: '2026-04-04', factor: 5652 }] },
+          { id: '9015', nombre: 'B040', historial: [{ fecha: '2026-04-05', factor: 5521 }] },
+          { id: '9016', nombre: 'B041', historial: [{ fecha: '2026-04-06', factor: 5525 }] }
+        ],
+        'QUERO': [
+          { id: '9001', nombre: 'B018', historial: [{ fecha: '2026-04-01', factor: 5680 }] },
+          { id: '9002', nombre: 'B017', historial: [{ fecha: '2026-04-06', factor: 5501 }] },
+          { id: '9003', nombre: 'B019', historial: [{ fecha: '2026-04-08', factor: 5661 }] },
+          { id: '9004', nombre: 'B020', historial: [{ fecha: '2026-04-10', factor: 5363 }] }
+        ],
+        'SOL': [
+          { id: '9005', nombre: 'B002', historial: [{ fecha: '2026-02-15', factor: 5534 }] },
+          { id: '9006', nombre: 'B003', historial: [{ fecha: '2026-03-20', factor: 5355 }] },
+          { id: '9007', nombre: 'B004', historial: [{ fecha: '2026-02-18', factor: 5362 }] },
+          { id: '9012', nombre: 'B027', historial: [{ fecha: '2026-03-12', factor: 5298 }] }
+        ],
+        'PEDRO ESCOBEDO': [
+          { id: 'PE-B01', nombre: 'BOMBA 1', historial: [{ fecha: '2026-05-01', factor: 5420 }] }
+        ],
+        'GALERAS': [
+          { id: 'EM-B01', nombre: 'EL MARQUEZ - BOMBA 1', historial: [{ fecha: '2026-05-10', factor: 5400 }] },
+          { id: 'ES-B01', nombre: 'EL SAUZ - BOMBA 1', historial: [{ fecha: '2026-05-12', factor: 5390 }] },
+          { id: 'GA-B01', nombre: 'GALERAS - BOMBA 1', historial: [{ fecha: '2026-05-15', factor: 5410 }] },
+          { id: 'SI-B01', nombre: 'SAN IGNACIO - BOMBA 1', historial: [{ fecha: '2026-05-18', factor: 5430 }] }
+        ],
+        'BALVANERA': [
+          { id: 'LA-B01', nombre: 'EJIDO LOS ANGELES - BOMBA 1', historial: [{ fecha: '2026-05-20', factor: 5380 }] },
+          { id: 'PF-BP05', nombre: 'PEÑA FLOR - BP05', historial: [{ fecha: '2026-05-22', factor: 5395 }] },
+          { id: 'PF-BP06', nombre: 'PEÑA FLOR - BP06', historial: [{ fecha: '2026-05-23', factor: 5410 }] },
+          { id: 'PF-BP08', nombre: 'PEÑA FLOR - BP08', historial: [{ fecha: '2026-05-24', factor: 5405 }] },
+          { id: 'PF-BP09', nombre: 'PEÑA FLOR - BP09', historial: [{ fecha: '2026-05-25', factor: 5420 }] }
+        ]
+      },
+      autotanques: {
+        'BALVANERA': [
+          { id: 'GL-037', nombre: 'Autotanque', historial: [{ fecha: '2026-03-13', factor: 1350 }] },
+          { id: 'GU-041', nombre: 'Autotanque', historial: [{ fecha: '2026-02-23', factor: 5391 }] },
+          { id: 'GU-044', nombre: 'Autotanque', historial: [{ fecha: '2026-02-20', factor: 5340 }] },
+          { id: 'GU-1977', nombre: 'Autotanque', historial: [{ fecha: '2026-02-23', factor: 5354 }] },
+          { id: 'GU-2132', nombre: 'Autotanque', historial: [{ fecha: '2026-02-23', factor: 1344 }] },
+          { id: 'GU-2133', nombre: 'Autotanque', historial: [{ fecha: '2026-02-23', factor: 1335 }] },
+          { id: 'GU-2135', nombre: 'Autotanque', historial: [{ fecha: '2026-02-23', factor: 1336 }] },
+          { id: 'GU-2136', nombre: 'Autotanque', historial: [{ fecha: '2026-03-01', factor: 1340 }] },
+          { id: 'GU-2137', nombre: 'Autotanque', historial: [{ fecha: '2026-03-13', factor: 1350 }] },
+          { id: 'QI-160', nombre: 'Autotanque', historial: [{ fecha: '2026-02-23', factor: 5359 }] }
+        ],
+        'GALERAS': [
+          { id: 'QI-249', nombre: 'Autotanque', historial: [{ fecha: '2026-02-20', factor: 5410 }] },
+          { id: 'QI-1532', nombre: 'Autotanque', historial: [{ fecha: '2026-02-24', factor: 5305 }] },
+          { id: 'QI-1699', nombre: 'Autotanque', historial: [{ fecha: '2026-02-24', factor: 5380 }] },
+          { id: 'QI-2419', nombre: 'Autotanque', historial: [{ fecha: '2026-02-24', factor: 5361 }] },
+          { id: 'QI-2420', nombre: 'Autotanque', historial: [{ fecha: '2026-02-24', factor: 5427 }] },
+          { id: 'QI-2457', nombre: 'Autotanque', historial: [{ fecha: '2026-02-24', factor: 5406 }] }
+        ],
+        'PEDRO ESCOBEDO': [
+          { id: 'QI-1702', nombre: 'Autotanque', historial: [{ fecha: '2026-02-24', factor: 5332 }] },
+          { id: 'QI-2417', nombre: 'Autotanque', historial: [{ fecha: '2026-02-24', factor: 5453 }] },
+          { id: 'QI-2648', nombre: 'Autotanque', historial: [{ fecha: '2026-02-25', factor: 5360 }] },
+          { id: 'QI-2662', nombre: 'Autotanque', historial: [{ fecha: '2026-02-24', factor: 5360 }] }
+        ],
+        'QUERETARO': [
+          { id: 'QI-091', nombre: 'Autotanque', historial: [{ fecha: '2026-03-01', factor: 5378 }] },
+          { id: 'QI-144', nombre: 'Autotanque', historial: [{ fecha: '2026-03-05', factor: 5410 }] },
+          { id: 'QI-158', nombre: 'Autotanque', historial: [{ fecha: '2026-03-06', factor: 5390 }] },
+          { id: 'QI-159', nombre: 'Autotanque', historial: [{ fecha: '2026-03-07', factor: 5420 }] },
+          { id: 'QI-163', nombre: 'Autotanque', historial: [{ fecha: '2026-03-08', factor: 5395 }] },
+          { id: 'QI-170', nombre: 'Autotanque', historial: [{ fecha: '2026-04-06', factor: 5414 }] },
+          { id: 'QI-178', nombre: 'Autotanque', historial: [{ fecha: '2026-03-10', factor: 5382 }] },
+          { id: 'QI-179', nombre: 'Autotanque', historial: [{ fecha: '2026-03-11', factor: 5405 }] },
+          { id: 'QI-188', nombre: 'Autotanque', historial: [] },
+          { id: 'QI-193', nombre: 'Autotanque', historial: [] },
+          { id: 'QI-201', nombre: 'Autotanque', historial: [] },
+          { id: 'QI-202', nombre: 'Autotanque', historial: [] },
+          { id: 'QI-769', nombre: 'Autotanque', historial: [{ fecha: '2026-03-24', factor: 5362 }] },
+          { id: 'QI-770', nombre: 'Autotanque', historial: [] },
+          { id: 'QI-1396', nombre: 'Autotanque', historial: [{ fecha: '2026-03-01', factor: 5383 }] },
+          { id: 'QI-1397', nombre: 'Autotanque', historial: [{ fecha: '2026-04-06', factor: 5385 }] },
+          { id: 'QI-1439', nombre: 'Autotanque', historial: [] },
+          { id: 'QI-1697', nombre: 'Autotanque', historial: [] },
+          { id: 'QI-1698', nombre: 'Autotanque', historial: [] },
+          { id: 'QI-1700', nombre: 'Autotanque', historial: [{ fecha: '2026-03-24', factor: 5349 }] },
+          { id: 'QI-1701', nombre: 'Autotanque', historial: [] },
+          { id: 'QI-1703', nombre: 'Autotanque', historial: [{ fecha: '2026-03-01', factor: 5365 }] },
+          { id: 'QI-1752', nombre: 'Autotanque', historial: [] },
+          { id: 'QI-1823', nombre: 'Autotanque', historial: [{ fecha: '2026-03-01', factor: 5450 }] },
+          { id: 'QI-1927', nombre: 'Autotanque', historial: [] },
+          { id: 'QI-1934', nombre: 'Autotanque', historial: [] },
+          { id: 'QI-1943', nombre: 'Autotanque', historial: [] },
+          { id: 'QI-1944', nombre: 'Autotanque', historial: [] },
+          { id: 'QI-2029', nombre: 'Autotanque', historial: [] },
+          { id: 'QI-2129', nombre: 'Autotanque', historial: [{ fecha: '2026-03-08', factor: 1319 }] },
+          { id: 'QI-2130', nombre: 'Autotanque', historial: [{ fecha: '2026-03-08', factor: 1319 }] },
+          { id: 'QI-2131', nombre: 'Autotanque', historial: [] },
+          { id: 'QI-2134', nombre: 'Autotanque', historial: [] },
+          { id: 'QI-2329', nombre: 'Autotanque', historial: [] },
+          { id: 'QI-2330', nombre: 'Autotanque', historial: [] },
+          { id: 'QI-2338', nombre: 'Autotanque', historial: [] },
+          { id: 'QI-2357', nombre: 'Autotanque', historial: [] },
+          { id: 'QI-2418', nombre: 'Autotanque', historial: [] },
+          { id: 'QI-2456', nombre: 'Autotanque', historial: [] },
+          { id: 'QI-2536', nombre: 'Autotanque', historial: [] },
+          { id: 'QI-2907', nombre: 'Autotanque', historial: [] },
+          { id: 'QI-3052', nombre: 'Autotanque', historial: [] },
+          { id: 'QI-3053', nombre: 'Autotanque', historial: [] },
+          { id: 'QI-3054', nombre: 'Autotanque', historial: [] },
+          { id: 'QI-3055', nombre: 'Autotanque', historial: [] },
+          { id: 'QI-3097', nombre: 'Autotanque', historial: [] },
+          { id: 'QI-3098', nombre: 'Autotanque', historial: [] },
+          { id: 'QI-3099', nombre: 'Autotanque', historial: [] }
+        ]
+      }
+    };
+
+    const STORAGE_KEY = 'plan_calibraciones_db_v1';
+    const INVENTARIO_ESTACIONES_STORAGE_KEY = 'at_estaciones';
+
+    function normalizeCalibrationKey(value) {
+      return String(value || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toUpperCase()
+        .trim();
+    }
+
+    const QUERETARO_STATION_GROUPS = new Set(['SOL', 'QUERO', 'BANCHIS']);
+
+    function normalizeCalibrationPlant(value) {
+      const normalized = normalizeCalibrationKey(value);
+      return QUERETARO_STATION_GROUPS.has(normalized) ? 'QUERETARO' : normalized;
+    }
+
+    function mergeCalibrationHistory(current, incoming) {
+      const byDate = new Map();
+      (Array.isArray(current) ? current : []).forEach(item => {
+        if (item?.fecha) byDate.set(item.fecha, item);
+      });
+      (Array.isArray(incoming) ? incoming : []).forEach(item => {
+        if (item?.fecha) byDate.set(item.fecha, item);
+      });
+      return Array.from(byDate.values()).sort((a, b) => String(a.fecha || '').localeCompare(String(b.fecha || '')));
+    }
+
+    function migrateQuereteroStationGroups() {
+      if (!DB.estaciones || typeof DB.estaciones !== 'object') return 0;
+      if (!Array.isArray(DB.estaciones.QUERETARO)) DB.estaciones.QUERETARO = [];
+
+      const existingById = new Map();
+      DB.estaciones.QUERETARO.forEach(item => {
+        const id = normalizeCalibrationKey(item?.id);
+        if (id) existingById.set(id, item);
+      });
+
+      let moved = 0;
+      QUERETARO_STATION_GROUPS.forEach(alias => {
+        const items = DB.estaciones[alias];
+        if (!Array.isArray(items)) return;
+
+        items.forEach(item => {
+          const id = normalizeCalibrationKey(item?.id);
+          if (!id) return;
+
+          const existing = existingById.get(id);
+          if (existing) {
+            existing.nombre = existing.nombre || item.nombre;
+            existing.historial = mergeCalibrationHistory(existing.historial, item.historial);
+          } else {
+            DB.estaciones.QUERETARO.push(item);
+            existingById.set(id, item);
+          }
+          moved += 1;
+        });
+
+        delete DB.estaciones[alias];
+      });
+
+      DB.estaciones.QUERETARO.sort((a, b) => String(a.id || '').localeCompare(String(b.id || ''), 'es', { numeric: true }));
+      return moved;
+    }
+
+    function buildStationPrefix(estacion) {
+      const words = normalizeCalibrationKey(estacion)
+        .replace(/[^A-Z0-9\s]/g, ' ')
+        .split(/\s+/)
+        .filter(Boolean);
+
+      const usefulWords = words[0] === 'EJIDO' ? words.slice(1) : words;
+      if (!usefulWords.length) return 'EC';
+      return usefulWords.map(word => word[0]).join('').slice(0, 3);
+    }
+
+    function formatBombaCode(bomba) {
+      const normalized = normalizeCalibrationKey(bomba).replace(/[^A-Z0-9\s-]/g, ' ');
+      const bombaNumber = normalized.match(/^BOMBA\s*0*(\d+)$/);
+      if (bombaNumber) return `B${String(parseInt(bombaNumber[1], 10)).padStart(2, '0')}`;
+      return normalized.replace(/\s+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '') || 'B01';
+    }
+
+    function mapInventarioStationToCalibration(row) {
+      const planta = normalizeCalibrationPlant(row?.planta);
+      const estacion = String(row?.estacion || '').trim();
+      const bombaRaw = String(row?.bomba || '').trim();
+      const bomba = normalizeCalibrationKey(bombaRaw);
+      const numericPump = bomba.match(/^(\d+)\s*[- ]?\s*(.*)$/);
+
+      if (numericPump) {
+        const suffix = numericPump[2] || bombaRaw;
+        return {
+          planta,
+          item: {
+            id: numericPump[1],
+            nombre: `${estacion} - ${suffix}`.trim(),
+            historial: []
+          }
+        };
+      }
+
+      const bombaCode = formatBombaCode(bombaRaw);
+      return {
+        planta,
+        item: {
+          id: `${buildStationPrefix(estacion)}-${bombaCode}`,
+          nombre: `${estacion} - ${bombaRaw}`.trim(),
+          historial: []
+        }
+      };
+    }
+
+    function mergeInventarioEstacionesIntoCalibrationDB() {
+      let rawStations = [];
+      try {
+        rawStations = JSON.parse(localStorage.getItem(INVENTARIO_ESTACIONES_STORAGE_KEY) || '[]');
+      } catch (error) {
+        console.warn('No se pudieron leer estaciones del inventario principal.', error);
+        return 0;
+      }
+
+      if (!Array.isArray(rawStations) || !rawStations.length) return 0;
+      if (!DB.estaciones || typeof DB.estaciones !== 'object') DB.estaciones = {};
+
+      const existingById = new Map();
+      Object.values(DB.estaciones).forEach(items => {
+        (Array.isArray(items) ? items : []).forEach(item => {
+          const id = normalizeCalibrationKey(item?.id);
+          if (id && !existingById.has(id)) existingById.set(id, item);
+        });
+      });
+
+      let added = 0;
+      rawStations.forEach(row => {
+        const planta = String(row?.planta || '').trim();
+        const estacion = String(row?.estacion || '').trim();
+        const bomba = String(row?.bomba || '').trim();
+        if (!planta || !estacion || !bomba) return;
+
+        const mapped = mapInventarioStationToCalibration(row);
+        const idKey = normalizeCalibrationKey(mapped.item.id);
+        if (!mapped.planta || !idKey) return;
+
+        const existing = existingById.get(idKey);
+        if (existing) {
+          if (!existing.nombre) existing.nombre = mapped.item.nombre;
+          if (!Array.isArray(existing.historial)) existing.historial = [];
+          return;
+        }
+
+        if (!Array.isArray(DB.estaciones[mapped.planta])) DB.estaciones[mapped.planta] = [];
+        DB.estaciones[mapped.planta].push(mapped.item);
+        existingById.set(idKey, mapped.item);
+        added += 1;
+      });
+
+      Object.keys(DB.estaciones).forEach(planta => {
+        DB.estaciones[planta].sort((a, b) => String(a.id || '').localeCompare(String(b.id || ''), 'es', { numeric: true }));
+      });
+
+      return added;
+    }
+
+    try {
+      const savedDB = localStorage.getItem(STORAGE_KEY);
+      if (savedDB) {
+        const parsedDB = JSON.parse(savedDB);
+        if (parsedDB && parsedDB.estaciones && parsedDB.autotanques) {
+          DB = parsedDB;
+        }
+      }
+    } catch (error) {
+      console.warn('No se pudo cargar el respaldo local de calibraciones.', error);
+    }
+
+    function persistDB() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(DB));
+      } catch (error) {
+        console.warn('No se pudo guardar el respaldo local de calibraciones.', error);
+        alert('El registro se guardó en pantalla, pero el navegador no permitió guardarlo para futuras recargas.');
+      }
+    }
+
+    const migratedQueretaroStations = migrateQuereteroStationGroups();
+    const importedInventarioStations = mergeInventarioEstacionesIntoCalibrationDB();
+    if (migratedQueretaroStations > 0 || importedInventarioStations > 0) persistDB();
+
+    // Estado de la Aplicación
+    let activeTab = 'estaciones'; // 'estaciones' | 'autotanques' | 'all'
+    let viewMode = 'plan_anual';  // 'plan_anual' | 'jerarquia' | 'unificada'
+    let searchTerm = '';
+    let plantaFilter = 'TODAS';
+    let expandedPlanta = null;
+    const currentEvaluationMonth = 6; // Junio de 2026 como mes actual de control
+
+    // Elementos del DOM
+    const dataContainer = document.getElementById('dataContainer');
+    const inputSearch = document.getElementById('inputSearch');
+    const selectPlanta = document.getElementById('selectPlanta');
+    const btnClearFilters = document.getElementById('btnClearFilters');
+    
+    // Elementos del Modal
+    const modalCalibracion = document.getElementById('modalCalibracion');
+    const formCalibracion = document.getElementById('formCalibracion');
+    const btnNewCal = document.getElementById('btnNewCal');
+    const btnModalClose = document.getElementById('btnModalClose');
+    const btnFormCancel = document.getElementById('btnFormCancel');
+    const modalEquipoEdit = document.getElementById('modalEquipoEdit');
+    const formEquipoEdit = document.getElementById('formEquipoEdit');
+    const btnEquipoEditClose = document.getElementById('btnEquipoEditClose');
+    const btnEquipoEditCancel = document.getElementById('btnEquipoEditCancel');
+
+    // Inicializar App
+    window.addEventListener('DOMContentLoaded', () => {
+      buildPlantaFilter();
+      setViewMode(viewMode);
+      
+      // Listeners de entrada de búsqueda
+      inputSearch.addEventListener('input', (e) => {
+        searchTerm = e.target.value;
+        updateDashboard();
+      });
+
+      selectPlanta.addEventListener('change', (e) => {
+        plantaFilter = e.target.value;
+        updateDashboard();
+      });
+
+      btnClearFilters.addEventListener('click', () => {
+        inputSearch.value = '';
+        selectPlanta.value = 'TODAS';
+        searchTerm = '';
+        plantaFilter = 'TODAS';
+        updateDashboard();
+      });
+
+      // Modal Events
+      btnNewCal.addEventListener('click', () => openModal());
+      btnModalClose.addEventListener('click', closeModal);
+      btnFormCancel.addEventListener('click', closeModal);
+      formCalibracion.addEventListener('submit', handleSaveCalibracion);
+      btnEquipoEditClose.addEventListener('click', closeEditEquipoModal);
+      btnEquipoEditCancel.addEventListener('click', closeEditEquipoModal);
+      formEquipoEdit.addEventListener('submit', handleSaveEquipoEdit);
+
+      // Exportar Excel
+      document.getElementById('btnExport').addEventListener('click', exportToCSV);
+
+      let resizeTimer = null;
+      window.addEventListener('resize', () => {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(updateDashboard, 120);
+      });
+      window.addEventListener('focus', updateDashboard);
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) updateDashboard();
+      });
+    });
+
+    // Cambiar Tabs
+    function setActiveTab(tab) {
+      activeTab = tab;
+      
+      // Update Tab Styles
+      const tabs = {
+        'estaciones': document.getElementById('tabEstaciones'),
+        'autotanques': document.getElementById('tabAutotanques'),
+        'all': document.getElementById('tabTodos')
+      };
+
+      Object.keys(tabs).forEach(k => {
+        if (k === tab) {
+          tabs[k].className = "flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm transition-all bg-white text-indigo-700 shadow-sm";
+        } else {
+          tabs[k].className = "flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm transition-all text-slate-500 hover:text-slate-800";
+        }
+      });
+
+      updateDashboard();
+    }
+
+    // Cambiar Vista de Plan
+    function setViewMode(mode) {
+      viewMode = mode;
+      
+      const views = {
+        'plan_anual': document.getElementById('viewPlanAnual'),
+        'jerarquia': document.getElementById('viewJerarquia'),
+        'unificada': document.getElementById('viewUnificada')
+      };
+
+      Object.keys(views).forEach(k => {
+        if (k === mode) {
+          views[k].className = "flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-xs border transition-all bg-indigo-50 border-indigo-200 text-indigo-700";
+        } else {
+          views[k].className = "flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-xs border transition-all bg-white text-slate-600 hover:bg-slate-50";
+        }
+      });
+
+      updateDashboard();
+    }
+
+    // Helper para obtener factor del mes
+    function getFactorForMonth(historial, monthId) {
+      if (!historial) return null;
+      const match = historial.find(h => {
+        // Formato esperado de fecha: YYYY-MM-DD
+        const monthPart = h.fecha.split('-')[1];
+        return monthPart === monthId;
+      });
+      return match ? match.factor : null;
+    }
+
+    // Convertir todo el catálogo jerárquico a arreglo plano para filtros generales
+    function getFlatRecords() {
+      const list = [];
+      Object.entries(DB.estaciones).forEach(([planta, items]) => {
+        items.forEach(item => {
+          list.push({ ...item, type: 'Estación', planta });
+        });
+      });
+      Object.entries(DB.autotanques).forEach(([planta, items]) => {
+        items.forEach(item => {
+          list.push({ ...item, type: 'Autotanque', planta });
+        });
+      });
+      return list;
+    }
+
+    // Construir dropdown de plantas de forma dinámica
+    function buildPlantaFilter() {
+      const list = getFlatRecords();
+      const plantas = [...new Set(list.map(item => item.planta))].sort();
+      
+      selectPlanta.innerHTML = '<option value="TODAS">📍 Todas las Plantas / Ubicaciones</option>';
+      plantas.forEach(p => {
+        const option = document.createElement('option');
+        option.value = p;
+        option.textContent = p;
+        selectPlanta.appendChild(option);
+      });
+    }
+
+    // Obtener registros filtrados según interfaz
+    function getFilteredRecords() {
+      const flat = getFlatRecords();
+      return flat.filter(item => {
+        const matchSearch = item.id.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                            (item.nombre || '').toLowerCase().includes(searchTerm.toLowerCase());
+        const matchPlanta = plantaFilter === 'TODAS' || item.planta === plantaFilter;
+        const matchType = activeTab === 'all' || 
+                          (activeTab === 'estaciones' && item.type === 'Estación') || 
+                          (activeTab === 'autotanques' && item.type === 'Autotanque');
+        return matchSearch && matchPlanta && matchType;
+      });
+    }
+
+    // Actualizar Panel de Control de Métricas y Vistas
+    function getTipoKeyFromRecord(item) {
+      return item?.type === 'Autotanque' ? 'autotanques' : 'estaciones';
+    }
+
+    function encodeActionValue(value) {
+      return encodeURIComponent(String(value ?? ''));
+    }
+
+    function findEquipmentRecord(tipo, id, planta) {
+      const tipoKey = tipo === 'autotanques' ? 'autotanques' : 'estaciones';
+      const plantKey = normalizeCalibrationPlant(planta);
+      const category = DB[tipoKey] || {};
+      const list = Array.isArray(category[plantKey]) ? category[plantKey] : [];
+      const idKey = normalizeCalibrationKey(id);
+      const idx = list.findIndex(item => normalizeCalibrationKey(item?.id) === idKey);
+      return {
+        tipo: tipoKey,
+        plant: plantKey,
+        category,
+        list,
+        idx,
+        item: idx >= 0 ? list[idx] : null
+      };
+    }
+
+    function sortEquipmentList(tipo, planta) {
+      const list = DB[tipo]?.[planta];
+      if (!Array.isArray(list)) return;
+      list.sort((a, b) => String(a.id || '').localeCompare(String(b.id || ''), 'es', { numeric: true }));
+    }
+
+    function renderEditEquipoButton(item, className = '') {
+      const tipo = getTipoKeyFromRecord(item);
+      const classes = className || 'text-[10px] font-extrabold text-indigo-600 hover:text-indigo-800';
+      return `
+        <button type="button"
+                class="${classes}"
+                onclick="openEditEquipoModalEncoded('${encodeActionValue(tipo)}','${encodeActionValue(item.id)}','${encodeActionValue(item.planta)}')">
+          Editar
+        </button>
+      `;
+    }
+
+    window.openEditEquipoModalEncoded = function(tipo, id, planta) {
+      openEditEquipoModal(
+        decodeURIComponent(tipo || ''),
+        decodeURIComponent(id || ''),
+        decodeURIComponent(planta || '')
+      );
+    };
+
+    function openEditEquipoModal(tipo, id, planta) {
+      const found = findEquipmentRecord(tipo, id, planta);
+      if (!found.item) {
+        alert('No se encontro el equipo seleccionado.');
+        return;
+      }
+
+      document.getElementById('editOriginalTipo').value = found.tipo;
+      document.getElementById('editOriginalId').value = found.item.id || '';
+      document.getElementById('editOriginalPlanta').value = found.plant;
+      document.getElementById('editTipo').value = found.tipo;
+      document.getElementById('editId').value = found.item.id || '';
+      document.getElementById('editPlanta').value = found.plant;
+      document.getElementById('editNombre').value = found.item.nombre || '';
+      modalEquipoEdit.classList.remove('hidden');
+    }
+
+    function closeEditEquipoModal() {
+      modalEquipoEdit.classList.add('hidden');
+    }
+
+    function handleSaveEquipoEdit(e) {
+      e.preventDefault();
+
+      const originalTipo = document.getElementById('editOriginalTipo').value;
+      const originalId = document.getElementById('editOriginalId').value;
+      const originalPlanta = document.getElementById('editOriginalPlanta').value;
+      const newTipo = document.getElementById('editTipo').value === 'autotanques' ? 'autotanques' : 'estaciones';
+      const newId = document.getElementById('editId').value.toUpperCase().trim();
+      const newPlanta = normalizeCalibrationPlant(document.getElementById('editPlanta').value);
+      const newNombre = document.getElementById('editNombre').value.trim();
+
+      if (!newId || !newPlanta) {
+        alert('ID Equipo y Planta son obligatorios.');
+        return;
+      }
+
+      const source = findEquipmentRecord(originalTipo, originalId, originalPlanta);
+      if (!source.item) {
+        alert('No se encontro el equipo original para editar.');
+        closeEditEquipoModal();
+        return;
+      }
+
+      const [equipment] = source.list.splice(source.idx, 1);
+      equipment.id = newId;
+      equipment.nombre = newNombre || equipment.nombre || 'Bomba';
+      if (!Array.isArray(equipment.historial)) equipment.historial = [];
+
+      if (!DB[newTipo] || typeof DB[newTipo] !== 'object') DB[newTipo] = {};
+      if (!Array.isArray(DB[newTipo][newPlanta])) DB[newTipo][newPlanta] = [];
+
+      const targetList = DB[newTipo][newPlanta];
+      const duplicateIdx = targetList.findIndex(item => normalizeCalibrationKey(item?.id) === normalizeCalibrationKey(newId));
+
+      if (duplicateIdx >= 0) {
+        const shouldMerge = confirm(`Ya existe el equipo ${newId} en ${newPlanta}. Quieres fusionar el historial?`);
+        if (!shouldMerge) {
+          source.list.splice(source.idx, 0, equipment);
+          return;
+        }
+
+        targetList[duplicateIdx].nombre = equipment.nombre || targetList[duplicateIdx].nombre;
+        targetList[duplicateIdx].historial = mergeCalibrationHistory(targetList[duplicateIdx].historial, equipment.historial);
+      } else {
+        targetList.push(equipment);
+      }
+
+      if (source.list.length === 0 && (source.tipo !== newTipo || source.plant !== newPlanta)) {
+        delete source.category[source.plant];
+      }
+
+      sortEquipmentList(source.tipo, source.plant);
+      sortEquipmentList(newTipo, newPlanta);
+      persistDB();
+      closeEditEquipoModal();
+      buildPlantaFilter();
+      updateDashboard();
+    }
+
+    function updateDashboard() {
+      const filtered = getFilteredRecords();
+      
+      // Mostrar / ocultar link de limpiar filtros
+      if (searchTerm || plantaFilter !== 'TODAS') {
+        btnClearFilters.classList.remove('hidden');
+      } else {
+        btnClearFilters.classList.add('hidden');
+      }
+
+      // Calcular métricas
+      const total = filtered.length;
+      let calibrados = 0;
+      filtered.forEach(item => {
+        if (getFactorForMonth(item.historial, '06') !== null) { // Evaluamos contra Junio ('06')
+          calibrados++;
+        }
+      });
+      const pendientes = total - calibrados;
+      const avance = total > 0 ? Math.round((calibrados / total) * 100) : 0;
+
+      // Actualizar DOM de métricas
+      document.getElementById('metricTotal').textContent = total;
+      document.getElementById('metricCalibrados').textContent = calibrados;
+      document.getElementById('metricPendientes').textContent = pendientes;
+      document.getElementById('metricProgressBar').style.width = avance + '%';
+      document.getElementById('metricProgressText').textContent = avance + '% Completado';
+
+      // Renderizar vista correspondiente
+      renderView(filtered);
+    }
+
+    // Renderizar vistas dinámicamente en el contenedor
+    function renderView(records) {
+      dataContainer.innerHTML = '';
+
+      if (viewMode === 'plan_anual') {
+        renderPlanAnual(records);
+      } else if (viewMode === 'jerarquia') {
+        renderJerarquia(records);
+      } else {
+        renderUnificada(records);
+      }
+    }
+
+    function isMobilePlanView() {
+      let viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
+      try {
+        if (window.parent && window.parent !== window) {
+          viewportWidth = window.parent.innerWidth || viewportWidth;
+        }
+      } catch {}
+      return viewportWidth > 0 && viewportWidth <= 640;
+    }
+
+    function getMonthCellData(eq, mes) {
+      const factor = getFactorForMonth(eq.historial, mes.id);
+      const mesInt = parseInt(mes.id);
+
+      if (factor !== null) {
+        return {
+          className: "bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100 font-bold",
+          text: factor
+        };
+      }
+
+      if (mesInt <= currentEvaluationMonth) {
+        return {
+          className: "bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100 font-semibold",
+          text: "Pend."
+        };
+      }
+
+      return {
+        className: "bg-slate-50 text-slate-400 border-slate-100",
+        text: "Prog"
+      };
+    }
+
+    function renderPlanAnualMobile(records) {
+      let html = `<div class="mobile-plan-list">`;
+
+      if (records.length === 0) {
+        html += `
+          <div class="bg-white rounded-xl border border-slate-100 p-8 text-center text-slate-400 shadow-sm">
+            No se encontraron registros activos.
+          </div>
+        `;
+      } else {
+        records.forEach(eq => {
+          html += `
+            <div class="mobile-equipment-card">
+              <div class="flex items-start justify-between gap-3 mb-3">
+                <div class="min-w-0">
+                  <div class="font-extrabold text-indigo-700 truncate">${eq.id}</div>
+                  <div class="text-[11px] text-slate-400 truncate">${eq.nombre || 'Bomba'}</div>
+                </div>
+                <div class="flex flex-col items-end gap-1 shrink-0 max-w-[46%]">
+                  <span class="text-[10px] font-bold text-slate-500 bg-slate-100 rounded-lg px-2 py-1 truncate max-w-full">${eq.planta}</span>
+                  ${renderEditEquipoButton(eq)}
+                </div>
+              </div>
+              <div class="mobile-month-grid">
+          `;
+
+          MESES.forEach(mes => {
+            const cell = getMonthCellData(eq, mes);
+            html += `
+              <button type="button"
+                      class="mobile-month-cell border ${cell.className}"
+                      onclick="quickRegister('${eq.type === 'Autotanque' ? 'autotanques' : 'estaciones'}', '${eq.id}', '${eq.planta}', '${eq.nombre || ''}', '2026-${mes.id}-01')">
+                <span>${mes.nombre}</span>
+                <strong>${cell.text}</strong>
+              </button>
+            `;
+          });
+
+          html += `
+              </div>
+            </div>
+          `;
+        });
+      }
+
+      html += `</div>`;
+      dataContainer.innerHTML = html;
+    }
+
+    // 1. RENDER PLAN ANUAL (MATRIZ MENSUAL INTERACTIVA)
+    function renderPlanAnual(records) {
+      if (isMobilePlanView()) {
+        renderPlanAnualMobile(records);
+        return;
+      }
+
+      let html = `
+        <div class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+          <div class="p-5 border-b border-slate-100 bg-white flex flex-col md:flex-row md:items-center justify-between gap-3">
+            <div>
+              <h3 class="font-extrabold text-slate-800 text-lg">Matriz de Factores Mensuales  </h3>
+              <p class="text-xs text-slate-400">Presiona una celda vacía para agendar o registrar el factor del mes respectivo.</p>
+            </div>
+            <div class="flex items-center gap-4 text-xs font-bold text-slate-500">
+              <span class="flex items-center gap-1"><span class="w-3 h-3 rounded-full bg-emerald-500"></span> Calibrado</span>
+              <span class="flex items-center gap-1"><span class="w-3 h-3 rounded-full bg-rose-500"></span> Retraso</span>
+              <span class="flex items-center gap-1"><span class="w-3 h-3 rounded-full bg-slate-100"></span> Programado</span>
+            </div>
+          </div>
+          <div class="mobile-table-scroll overflow-x-auto">
+            <table class="w-full matrix-plan-table text-left text-xs md:text-sm">
+              <thead class="bg-slate-50 text-slate-500 uppercase text-[10px] tracking-wider font-bold border-b">
+                <tr>
+                  <th class="p-3 border-r sticky left-0 bg-slate-50 z-10 w-44">Equipo / ID</th>
+                  <th class="p-3 border-r">Planta</th>
+                  ${MESES.map(m => `
+                    <th class="p-2 text-center border-r last:border-0 ${parseInt(m.id) === currentEvaluationMonth ? 'bg-indigo-50 text-indigo-800 font-extrabold font-mono' : ''}">
+                      ${m.nombre}
+                    </th>
+                  `).join('')}
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100">
+      `;
+
+      if (records.length === 0) {
+        html += `
+          <tr>
+            <td colSpan="14" class="p-8 text-center text-slate-400">
+              No se encontraron registros activos.
+            </td>
+          </tr>
+        `;
+      } else {
+        records.forEach((eq, idx) => {
+          html += `
+            <tr class="hover:bg-slate-50/50 transition-all">
+              <td class="p-3 font-bold text-slate-900 border-r bg-white sticky left-0 z-10">
+                <div class="flex flex-col">
+                  <span class="text-indigo-700">${eq.id}</span>
+                  <span class="text-[10px] text-slate-400 font-normal">${eq.nombre || 'Bomba'}</span>
+                  ${renderEditEquipoButton(eq, 'mt-1 text-[10px] font-extrabold text-indigo-600 hover:text-indigo-800 text-left')}
+                </div>
+              </td>
+              <td class="p-3 font-semibold text-slate-500 border-r text-xs">${eq.planta}</td>
+          `;
+
+          MESES.forEach(mes => {
+            const factor = getFactorForMonth(eq.historial, mes.id);
+            const mesInt = parseInt(mes.id);
+            let cellClass = "";
+            let textValue = "-";
+
+            if (factor !== null) {
+              cellClass = "bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100 font-bold";
+              textValue = factor;
+            } else if (mesInt <= currentEvaluationMonth) {
+              cellClass = "bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100 font-semibold";
+              textValue = "Pend.";
+            } else {
+              cellClass = "bg-slate-50 text-slate-400 border-slate-100";
+              textValue = "Prog";
+            }
+
+            html += `
+              <td class="p-2 text-center border-r last:border-0 text-xs border ${cellClass} transition-all cursor-pointer"
+                  onclick="quickRegister('${eq.type === 'Autotanque' ? 'autotanques' : 'estaciones'}', '${eq.id}', '${eq.planta}', '${eq.nombre || ''}', '2026-${mes.id}-01')">
+                ${textValue}
+              </td>
+            `;
+          });
+
+          html += `</tr>`;
+        });
+      }
+
+      html += `
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `;
+
+      dataContainer.innerHTML = html;
+    }
+
+    // 2. RENDER JERARQUÍA AGRUPADA POR PLANTA
+    function renderJerarquia(records) {
+      // Agrupar registros filtrados por planta
+      const agrupados = {};
+      records.forEach(item => {
+        if (!agrupados[item.planta]) agrupados[item.planta] = [];
+        agrupados[item.planta].push(item);
+      });
+
+      let html = `<div class="grid grid-cols-1 gap-4">`;
+
+      if (Object.keys(agrupados).length === 0) {
+        html += `
+          <div class="bg-white rounded-xl border border-slate-100 p-8 text-center text-slate-400 shadow-sm">
+            Ninguna planta coincide con la búsqueda.
+          </div>
+        `;
+      } else {
+        Object.entries(agrupados).forEach(([planta, items]) => {
+          const isExpanded = expandedPlanta === planta;
+          
+          html += `
+            <div class="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden transition-all hover:border-slate-200">
+              <button onclick="togglePlanta('${planta}')" class="w-full p-5 flex justify-between items-center font-bold text-slate-700 bg-white hover:bg-slate-50 transition-all text-left">
+                <div class="flex items-center gap-3">
+                  <span class="p-2 bg-indigo-50 text-indigo-600 rounded-lg">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path>
+                    </svg>
+                  </span>
+                  <div>
+                    <h3 class="text-md font-extrabold text-slate-800">${planta}</h3>
+                    <p class="text-xs text-slate-400 font-normal">${items.length} Equipos en total</p>
+                  </div>
+                </div>
+                <span>
+                  ${isExpanded ? `
+                    <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"></path></svg>
+                  ` : `
+                    <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"></path></svg>
+                  `}
+                </span>
+              </button>
+          `;
+
+          if (isExpanded) {
+            html += `
+              <div class="p-5 border-t border-slate-50 bg-slate-50/50">
+                <div class="mobile-table-scroll overflow-x-auto">
+                  <table class="w-full text-left text-xs md:text-sm">
+                    <thead>
+                      <tr class="text-slate-400 font-semibold uppercase text-[11px] tracking-wider border-b pb-2">
+                        <th class="pb-3 px-2">ID Equipo</th>
+                        <th class="pb-3 px-2">Descripción</th>
+                        <th class="pb-3 px-2">Última Calibración</th>
+                        <th class="pb-3 px-2">Estatus</th>
+                        <th class="pb-3 px-2">Historial Anual</th>
+                      </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+            `;
+
+            items.forEach((item) => {
+              const lastCal = item.historial && item.historial.length > 0 
+                ? item.historial[item.historial.length - 1] 
+                : null;
+              const hasJune = getFactorForMonth(item.historial, '06');
+
+              html += `
+                <tr class="hover:bg-indigo-50/30 transition-all">
+                  <td class="py-3.5 px-2 font-bold text-indigo-700">
+                    <div class="flex flex-col gap-1">
+                      <span>${item.id}</span>
+                      ${renderEditEquipoButton(item)}
+                    </div>
+                  </td>
+                  <td class="py-3.5 px-2 text-slate-600 font-medium">${item.nombre || 'BOMBA / GENERAL'}</td>
+                  <td class="py-3.5 px-2">
+                    ${lastCal ? `
+                      <div class="flex flex-col">
+                        <span class="font-bold text-slate-800">${lastCal.factor}</span>
+                        <span class="text-[10px] text-slate-400">${lastCal.fecha}</span>
+                      </div>
+                    ` : '<span class="text-slate-400 text-xs">Sin registros</span>'}
+                  </td>
+                  <td class="py-3.5 px-2">
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold border ${hasJune ? 'bg-emerald-100 text-emerald-800 border-emerald-300' : 'bg-rose-100 text-rose-800 border-rose-300'}">
+                      ${hasJune ? '✔ Al día' : '⚠ Retraso'}
+                    </span>
+                  </td>
+                  <td class="py-3.5 px-2">
+                    <div class="flex flex-wrap gap-1">
+                      ${(item.historial || []).map(h => `
+                        <span class="text-[9px] bg-white text-slate-600 px-1.5 py-0.5 rounded border font-mono">
+                          M${parseInt(h.fecha.split('-')[1])}:<strong>${h.factor}</strong>
+                        </span>
+                      `).join('')}
+                    </div>
+                  </td>
+                </tr>
+              `;
+            });
+
+            html += `
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            `;
+          }
+
+          html += `</div>`;
+        });
+      }
+
+      html += `</div>`;
+      dataContainer.innerHTML = html;
+    }
+
+    // Toggle para la vista de acordeón
+    window.togglePlanta = function(planta) {
+      expandedPlanta = expandedPlanta === planta ? null : planta;
+      updateDashboard();
+    };
+
+    // 3. RENDER TABLA MAESTRA UNIFICADA
+    function renderUnificada(records) {
+      let html = `
+        <div class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+          <div class="p-5 border-b border-slate-100 bg-white flex flex-col md:flex-row md:items-center justify-between gap-3">
+            <div>
+              <h3 class="font-extrabold text-slate-800 text-lg">Tabla Maestra de Equipamiento</h3>
+              <p class="text-xs text-slate-400">Listado general unificado con su última lectura registrada</p>
+            </div>
+            <span class="text-xs font-bold bg-indigo-50 text-indigo-700 py-1.5 px-3 rounded-xl border border-indigo-100">
+              Coincidencias: ${records.length} Equipos
+            </span>
+          </div>
+          <div class="mobile-table-scroll overflow-x-auto">
+            <table class="w-full compact-data-table text-left text-sm">
+              <thead class="bg-slate-50 text-slate-500 uppercase text-xs font-bold border-b">
+                <tr>
+                  <th class="p-3">Tipo</th>
+                  <th class="p-3">Planta / Origen</th>
+                  <th class="p-3">ID</th>
+                  <th class="p-3">Descripción</th>
+                  <th class="p-3">Calibración Activa</th>
+                  <th class="p-3 text-right">Estatus del Mes</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100">
+      `;
+
+      if (records.length === 0) {
+        html += `
+          <tr>
+            <td colSpan="6" class="p-8 text-center text-slate-400">
+              Ningún registro coincide con los filtros establecidos.
+            </td>
+          </tr>
+        `;
+      } else {
+        records.forEach((r, idx) => {
+          const lastCal = r.historial && r.historial.length > 0 ? r.historial[r.historial.length - 1] : null;
+          const thisMonthCal = getFactorForMonth(r.historial, '06');
+
+          html += `
+            <tr class="hover:bg-slate-50/50 transition-all">
+              <td class="p-3">
+                <span class="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-bold ${r.type === 'Estación' ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700'}">
+                  ${r.type}
+                </span>
+              </td>
+              <td class="p-3 font-extrabold text-slate-600">${r.planta}</td>
+              <td class="p-3 font-bold text-slate-900">
+                <div class="flex flex-col gap-1">
+                  <span>${r.id}</span>
+                  ${renderEditEquipoButton(r)}
+                </div>
+              </td>
+              <td class="p-3 text-slate-500">${r.nombre || 'Bomba'}</td>
+              <td class="p-3">
+                ${lastCal ? `
+                  <div class="flex items-center gap-2">
+                    <span class="font-mono bg-slate-100 text-slate-800 py-1 px-2.5 rounded-lg text-xs font-bold border border-slate-200">
+                      ${lastCal.factor}
+                    </span>
+                    <span class="text-[10px] text-slate-400">(${lastCal.fecha})</span>
+                  </div>
+                ` : '-'}
+              </td>
+              <td class="p-3 text-right">
+                <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold border ${thisMonthCal ? 'bg-emerald-100 text-emerald-800 border-emerald-300' : 'bg-rose-100 text-rose-800 border-rose-300'}">
+                  ${thisMonthCal ? 'Calib.' : 'Pend.'}
+                </span>
+              </td>
+            </tr>
+          `;
+        });
+      }
+
+      html += `
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `;
+
+      dataContainer.innerHTML = html;
+    }
+
+    // Modal de Registro Rápido al hacer click en Matriz
+    window.quickRegister = function(tipo, id, planta, nombre, fechaCompleta) {
+      openModal(tipo, id, planta, nombre, fechaCompleta);
+    }
+
+    // Funciones del Modal
+    function openModal(tipo = 'estaciones', id = '', planta = '', nombre = '', fecha = '2026-06-13') {
+      document.getElementById('formTipo').value = tipo;
+      document.getElementById('formId').value = id;
+      document.getElementById('formPlanta').value = planta;
+      document.getElementById('formNombre').value = nombre;
+      document.getElementById('formFactor').value = '';
+      document.getElementById('formFecha').value = fecha;
+
+      modalCalibracion.classList.remove('hidden');
+    }
+
+    function closeModal() {
+      modalCalibracion.classList.add('hidden');
+    }
+
+    // Guardar nueva calibración en la estructura en memoria
+    function handleSaveCalibracion(e) {
+      e.preventDefault();
+      
+      const tipo = document.getElementById('formTipo').value;
+      const id = document.getElementById('formId').value.toUpperCase().trim();
+      const planta = normalizeCalibrationPlant(document.getElementById('formPlanta').value);
+      const nombre = document.getElementById('formNombre').value || 'Bomba';
+      const factor = parseInt(document.getElementById('formFactor').value);
+      const fecha = document.getElementById('formFecha').value;
+
+      if (!id || !planta || !factor || !fecha) return;
+
+      const currentCategory = DB[tipo];
+      if (!currentCategory[planta]) {
+        currentCategory[planta] = [];
+      }
+
+      const targetPlantaList = currentCategory[planta];
+      const existingIdx = targetPlantaList.findIndex(item => item.id === id);
+
+      const newCal = { fecha, factor };
+
+      if (existingIdx > -1) {
+        // Existe el equipo. Agrega o actualiza calibración para ese mes
+        const equipment = targetPlantaList[existingIdx];
+        if (!equipment.historial) equipment.historial = [];
+
+        // Evaluar si ya tiene factor registrado en el mismo mes para sobreescribir
+        const newCalDate = new Date(fecha + 'T00:00:00');
+        const sameMonthIdx = equipment.historial.findIndex(h => {
+          const d = new Date(h.fecha + 'T00:00:00');
+          return d.getMonth() === newCalDate.getMonth() && d.getFullYear() === newCalDate.getFullYear();
+        });
+
+        if (sameMonthIdx > -1) {
+          equipment.historial[sameMonthIdx] = newCal;
+        } else {
+          equipment.historial.push(newCal);
+        }
+      } else {
+        // Crear nuevo registro de equipo
+        targetPlantaList.push({
+          id,
+          nombre,
+          historial: [newCal]
+        });
+      }
+
+      persistDB();
+      closeModal();
+      buildPlantaFilter();
+      updateDashboard();
+    }
+
+    // Exportación Dinámica a CSV de los datos filtrados en pantalla
+    function exportToCSV() {
+      const filtered = getFilteredRecords();
+      let csvContent = "data:text/csv;charset=utf-8,";
+      csvContent += "ID,Tipo,Planta,Descripcion,Mes,Factor,Fecha\r\n";
+
+      filtered.forEach(eq => {
+        MESES.forEach(mes => {
+          const calibracion = (eq.historial || []).find(h => h.fecha.split('-')[1] === mes.id);
+          if (calibracion) {
+            csvContent += `"${eq.id}","${eq.type}","${eq.planta}","${eq.nombre || ''}","${mes.nombre}","${calibracion.factor}","${calibracion.fecha}"\r\n`;
+          }
+        });
+      });
+
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", "Plan_Calibracion_Factores_2026.csv");
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  </script>
+
+</body>
+</html>
