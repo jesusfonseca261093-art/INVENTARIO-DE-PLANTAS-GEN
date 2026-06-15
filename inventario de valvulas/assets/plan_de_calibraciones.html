@@ -6,6 +6,8 @@
   <title>Calibración Mensual de Factores</title>
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config/supabase.config.js"></script>
   <!-- Google Fonts (Inter) -->
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
@@ -250,6 +252,9 @@
       <div>
       </div>
       <div class="mobile-actions flex gap-2">
+        <span id="syncStatus" class="hidden sm:inline-flex items-center px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-500 shadow-sm">
+          Local
+        </span>
         <button id="btnExport" class="header-action-btn bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold py-2.5 px-4 rounded-xl shadow-sm flex items-center gap-2 transition-all">
           <svg class="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"></path>
@@ -631,6 +636,15 @@
 
     const STORAGE_KEY = 'plan_calibraciones_db_v1';
     const INVENTARIO_ESTACIONES_STORAGE_KEY = 'at_estaciones';
+    const APP_SUPABASE_CONFIG = window.SUPABASE_CONFIG || {};
+    const SUPABASE_URL = String(APP_SUPABASE_CONFIG.url || '').trim();
+    const SUPABASE_ANON = String(APP_SUPABASE_CONFIG.anonKey || '').trim();
+    const SUPABASE_TABLE_CALIBRATIONS = String(APP_SUPABASE_CONFIG.tableCalibrationFactors || 'calibraciones_factores').trim() || 'calibraciones_factores';
+    const calibrationSupabaseClient = SUPABASE_URL && SUPABASE_ANON && window.supabase?.createClient
+      ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON)
+      : null;
+    let remoteCalibrationsAvailable = Boolean(calibrationSupabaseClient);
+    let remoteCalibrationsLoaded = false;
 
     function normalizeCalibrationKey(value) {
       return String(value || '')
@@ -794,6 +808,291 @@
       return added;
     }
 
+    function setSyncStatus(message, tone = 'slate') {
+      const el = document.getElementById('syncStatus');
+      if (!el) return;
+
+      const styles = {
+        slate: 'hidden sm:inline-flex items-center px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-500 shadow-sm',
+        indigo: 'hidden sm:inline-flex items-center px-3 py-2 rounded-xl border border-indigo-200 bg-indigo-50 text-xs font-bold text-indigo-700 shadow-sm',
+        emerald: 'hidden sm:inline-flex items-center px-3 py-2 rounded-xl border border-emerald-200 bg-emerald-50 text-xs font-bold text-emerald-700 shadow-sm',
+        amber: 'hidden sm:inline-flex items-center px-3 py-2 rounded-xl border border-amber-200 bg-amber-50 text-xs font-bold text-amber-700 shadow-sm',
+        rose: 'hidden sm:inline-flex items-center px-3 py-2 rounded-xl border border-rose-200 bg-rose-50 text-xs font-bold text-rose-700 shadow-sm'
+      };
+
+      el.className = styles[tone] || styles.slate;
+      el.textContent = message;
+    }
+
+    function getDateParts(fecha) {
+      const parts = String(fecha || '').split('-');
+      const anio = parseInt(parts[0], 10);
+      const mes = parseInt(parts[1], 10);
+      if (!Number.isFinite(anio) || !Number.isFinite(mes)) return null;
+      return { anio, mes };
+    }
+
+    function getCalibrationRowId(tipo, planta, equipoId, fecha) {
+      const dateParts = getDateParts(fecha);
+      const month = dateParts ? String(dateParts.mes).padStart(2, '0') : '00';
+      const year = dateParts ? String(dateParts.anio) : '0000';
+      return [
+        tipo === 'autotanques' ? 'AUTOTANQUES' : 'ESTACIONES',
+        normalizeCalibrationKey(planta).replace(/[^A-Z0-9]+/g, '_'),
+        normalizeCalibrationKey(equipoId).replace(/[^A-Z0-9]+/g, '_'),
+        year,
+        month
+      ].filter(Boolean).join('__');
+    }
+
+    function buildCalibrationRow(tipo, planta, item, calibration) {
+      const dateParts = getDateParts(calibration?.fecha);
+      const factor = Number(calibration?.factor);
+      if (!dateParts || !Number.isFinite(factor)) return null;
+
+      return {
+        id: getCalibrationRowId(tipo, planta, item?.id, calibration.fecha),
+        tipo: tipo === 'autotanques' ? 'autotanques' : 'estaciones',
+        planta: normalizeCalibrationPlant(planta),
+        equipo_id: String(item?.id || '').toUpperCase().trim(),
+        nombre: String(item?.nombre || '').trim(),
+        fecha: calibration.fecha,
+        anio: dateParts.anio,
+        mes: dateParts.mes,
+        factor,
+        observaciones: calibration.observaciones || null
+      };
+    }
+
+    function getCalibrationRowsFromDB() {
+      const rows = [];
+      Object.entries(DB.estaciones || {}).forEach(([planta, items]) => {
+        (Array.isArray(items) ? items : []).forEach(item => {
+          (Array.isArray(item.historial) ? item.historial : []).forEach(calibration => {
+            const row = buildCalibrationRow('estaciones', planta, item, calibration);
+            if (row) rows.push(row);
+          });
+        });
+      });
+
+      Object.entries(DB.autotanques || {}).forEach(([planta, items]) => {
+        (Array.isArray(items) ? items : []).forEach(item => {
+          (Array.isArray(item.historial) ? item.historial : []).forEach(calibration => {
+            const row = buildCalibrationRow('autotanques', planta, item, calibration);
+            if (row) rows.push(row);
+          });
+        });
+      });
+
+      return rows;
+    }
+
+    function applyCalibrationToItem(item, calibration) {
+      if (!Array.isArray(item.historial)) item.historial = [];
+      const incomingDate = new Date(calibration.fecha + 'T00:00:00');
+      const sameMonthIdx = item.historial.findIndex(h => {
+        const d = new Date(h.fecha + 'T00:00:00');
+        return d.getMonth() === incomingDate.getMonth() && d.getFullYear() === incomingDate.getFullYear();
+      });
+
+      if (sameMonthIdx >= 0) {
+        item.historial[sameMonthIdx] = calibration;
+      } else {
+        item.historial.push(calibration);
+      }
+
+      item.historial.sort((a, b) => String(a.fecha || '').localeCompare(String(b.fecha || '')));
+    }
+
+    function applyRemoteCalibrationRows(rows) {
+      let imported = 0;
+      (Array.isArray(rows) ? rows : []).forEach(row => {
+        const tipo = row?.tipo === 'autotanques' ? 'autotanques' : 'estaciones';
+        const planta = normalizeCalibrationPlant(row?.planta);
+        const equipoId = String(row?.equipo_id || '').toUpperCase().trim();
+        const factor = Number(row?.factor);
+        const fecha = String(row?.fecha || '').slice(0, 10);
+
+        if (!planta || !equipoId || !fecha || !Number.isFinite(factor)) return;
+        if (!DB[tipo] || typeof DB[tipo] !== 'object') DB[tipo] = {};
+        if (!Array.isArray(DB[tipo][planta])) DB[tipo][planta] = [];
+
+        const list = DB[tipo][planta];
+        const idKey = normalizeCalibrationKey(equipoId);
+        let item = list.find(eq => normalizeCalibrationKey(eq?.id) === idKey);
+        if (!item) {
+          item = {
+            id: equipoId,
+            nombre: row.nombre || (tipo === 'autotanques' ? 'Autotanque' : 'Bomba'),
+            historial: []
+          };
+          list.push(item);
+        } else if (row.nombre) {
+          item.nombre = row.nombre;
+        }
+
+        applyCalibrationToItem(item, {
+          fecha,
+          factor,
+          observaciones: row.observaciones || undefined
+        });
+        imported += 1;
+      });
+
+      Object.keys(DB.estaciones || {}).forEach(planta => sortEquipmentList('estaciones', planta));
+      Object.keys(DB.autotanques || {}).forEach(planta => sortEquipmentList('autotanques', planta));
+      return imported;
+    }
+
+    function hasRemoteCalibrationSupport() {
+      return Boolean(remoteCalibrationsAvailable && calibrationSupabaseClient);
+    }
+
+    async function hasActiveSupabaseSession() {
+      if (!calibrationSupabaseClient?.auth?.getSession) return false;
+      const { data, error } = await calibrationSupabaseClient.auth.getSession();
+      if (error) {
+        console.warn('No se pudo validar la sesion de Supabase para calibraciones.', error);
+        return false;
+      }
+      return Boolean(data?.session);
+    }
+
+    async function loadRemoteCalibrations() {
+      if (!calibrationSupabaseClient) {
+        setSyncStatus('Local', 'amber');
+        return false;
+      }
+
+      if (!await hasActiveSupabaseSession()) {
+        setSyncStatus('Local', 'amber');
+        return false;
+      }
+
+      remoteCalibrationsAvailable = true;
+      setSyncStatus('Sincronizando', 'indigo');
+      const { data, error } = await calibrationSupabaseClient
+        .from(SUPABASE_TABLE_CALIBRATIONS)
+        .select('id,tipo,planta,equipo_id,nombre,fecha,anio,mes,factor,observaciones,created_at,updated_at')
+        .order('fecha', { ascending: true });
+
+      if (error) {
+        remoteCalibrationsAvailable = false;
+        console.warn('No se pudieron cargar calibraciones desde Supabase.', error);
+        setSyncStatus('Local', 'amber');
+        return false;
+      }
+
+      remoteCalibrationsLoaded = true;
+      const imported = applyRemoteCalibrationRows(data);
+      if (imported > 0) persistDB();
+      buildPlantaFilter();
+      updateDashboard();
+      setSyncStatus('Supabase', 'emerald');
+      return true;
+    }
+
+    async function upsertCalibrationRowsRemote(rows, label = 'calibraciones') {
+      if (!hasRemoteCalibrationSupport()) return false;
+      if (!await hasActiveSupabaseSession()) {
+        setSyncStatus('Local', 'amber');
+        return false;
+      }
+
+      const cleanRows = (Array.isArray(rows) ? rows : []).filter(Boolean);
+      if (!cleanRows.length) return true;
+
+      const chunkSize = 500;
+      for (let i = 0; i < cleanRows.length; i += chunkSize) {
+        const chunk = cleanRows.slice(i, i + chunkSize);
+        const { error } = await calibrationSupabaseClient
+          .from(SUPABASE_TABLE_CALIBRATIONS)
+          .upsert(chunk, { onConflict: 'tipo,planta,equipo_id,anio,mes' });
+
+        if (error) {
+          console.warn(`No se pudieron guardar ${label} en Supabase.`, error);
+          setSyncStatus('Local', 'amber');
+          return false;
+        }
+      }
+
+      setSyncStatus('Supabase', 'emerald');
+      return true;
+    }
+
+    async function syncAllCalibrationsRemote() {
+      if (!hasRemoteCalibrationSupport() || !remoteCalibrationsLoaded) return false;
+      const rows = getCalibrationRowsFromDB();
+      return upsertCalibrationRowsRemote(rows, 'el catalogo de calibraciones');
+    }
+
+    async function saveCalibrationRemote(tipo, planta, item, calibration) {
+      const row = buildCalibrationRow(tipo, planta, item, calibration);
+      return upsertCalibrationRowsRemote([row], 'la calibracion');
+    }
+
+    async function deleteRemoteEquipmentRows(tipo, planta, equipoId) {
+      if (!hasRemoteCalibrationSupport()) return false;
+
+      const { error } = await calibrationSupabaseClient
+        .from(SUPABASE_TABLE_CALIBRATIONS)
+        .delete()
+        .match({
+          tipo: tipo === 'autotanques' ? 'autotanques' : 'estaciones',
+          planta: normalizeCalibrationPlant(planta),
+          equipo_id: String(equipoId || '').toUpperCase().trim()
+        });
+
+      if (error) {
+        console.warn('No se pudieron reemplazar las filas anteriores del equipo en Supabase.', error);
+        setSyncStatus('Local', 'amber');
+        return false;
+      }
+
+      return true;
+    }
+
+    async function syncEquipmentChangeRemote(previous, next) {
+      if (!hasRemoteCalibrationSupport()) return false;
+      const previousKey = [
+        previous?.tipo === 'autotanques' ? 'autotanques' : 'estaciones',
+        normalizeCalibrationPlant(previous?.planta),
+        normalizeCalibrationKey(previous?.id)
+      ].join('|');
+      const nextKey = [
+        next?.tipo === 'autotanques' ? 'autotanques' : 'estaciones',
+        normalizeCalibrationPlant(next?.planta),
+        normalizeCalibrationKey(next?.item?.id)
+      ].join('|');
+
+      if (previousKey !== nextKey) {
+        await deleteRemoteEquipmentRows(previous.tipo, previous.planta, previous.id);
+      }
+
+      const rows = (Array.isArray(next?.item?.historial) ? next.item.historial : [])
+        .map(calibration => buildCalibrationRow(next.tipo, next.planta, next.item, calibration))
+        .filter(Boolean);
+
+      return upsertCalibrationRowsRemote(rows, 'el equipo editado');
+    }
+
+    function bindSupabaseAuthSync() {
+      if (!calibrationSupabaseClient?.auth?.onAuthStateChange) return;
+      calibrationSupabaseClient.auth.onAuthStateChange((_event, session) => {
+        if (!session) {
+          remoteCalibrationsLoaded = false;
+          setSyncStatus('Local', 'amber');
+          return;
+        }
+
+        remoteCalibrationsAvailable = true;
+        setTimeout(async () => {
+          await loadRemoteCalibrations();
+          await syncAllCalibrationsRemote();
+        }, 0);
+      });
+    }
+
     try {
       const savedDB = localStorage.getItem(STORAGE_KEY);
       if (savedDB) {
@@ -845,9 +1144,12 @@
     const btnEquipoEditCancel = document.getElementById('btnEquipoEditCancel');
 
     // Inicializar App
-    window.addEventListener('DOMContentLoaded', () => {
+    window.addEventListener('DOMContentLoaded', async () => {
       buildPlantaFilter();
       setViewMode(viewMode);
+      bindSupabaseAuthSync();
+      await loadRemoteCalibrations();
+      await syncAllCalibrationsRemote();
       
       // Listeners de entrada de búsqueda
       inputSearch.addEventListener('input', (e) => {
@@ -1096,6 +1398,7 @@
       const targetList = DB[newTipo][newPlanta];
       const duplicateIdx = targetList.findIndex(item => normalizeCalibrationKey(item?.id) === normalizeCalibrationKey(newId));
 
+      let savedEquipment = equipment;
       if (duplicateIdx >= 0) {
         const shouldMerge = confirm(`Ya existe el equipo ${newId} en ${newPlanta}. Quieres fusionar el historial?`);
         if (!shouldMerge) {
@@ -1105,6 +1408,7 @@
 
         targetList[duplicateIdx].nombre = equipment.nombre || targetList[duplicateIdx].nombre;
         targetList[duplicateIdx].historial = mergeCalibrationHistory(targetList[duplicateIdx].historial, equipment.historial);
+        savedEquipment = targetList[duplicateIdx];
       } else {
         targetList.push(equipment);
       }
@@ -1119,6 +1423,10 @@
       closeEditEquipoModal();
       buildPlantaFilter();
       updateDashboard();
+      void syncEquipmentChangeRemote(
+        { tipo: source.tipo, planta: source.plant, id: originalId },
+        { tipo: newTipo, planta: newPlanta, item: savedEquipment }
+      );
     }
 
     function updateDashboard() {
@@ -1589,7 +1897,7 @@
       const factor = parseInt(document.getElementById('formFactor').value);
       const fecha = document.getElementById('formFecha').value;
 
-      if (!id || !planta || !factor || !fecha) return;
+      if (!id || !planta || !Number.isFinite(factor) || !fecha) return;
 
       const currentCategory = DB[tipo];
       if (!currentCategory[planta]) {
@@ -1600,11 +1908,13 @@
       const existingIdx = targetPlantaList.findIndex(item => item.id === id);
 
       const newCal = { fecha, factor };
+      let savedEquipment = null;
 
       if (existingIdx > -1) {
         // Existe el equipo. Agrega o actualiza calibración para ese mes
         const equipment = targetPlantaList[existingIdx];
         if (!equipment.historial) equipment.historial = [];
+        savedEquipment = equipment;
 
         // Evaluar si ya tiene factor registrado en el mismo mes para sobreescribir
         const newCalDate = new Date(fecha + 'T00:00:00');
@@ -1620,17 +1930,19 @@
         }
       } else {
         // Crear nuevo registro de equipo
-        targetPlantaList.push({
+        savedEquipment = {
           id,
           nombre,
           historial: [newCal]
-        });
+        };
+        targetPlantaList.push(savedEquipment);
       }
 
       persistDB();
       closeModal();
       buildPlantaFilter();
       updateDashboard();
+      void saveCalibrationRemote(tipo, planta, savedEquipment, newCal);
     }
 
     // Exportación Dinámica a CSV de los datos filtrados en pantalla

@@ -11,6 +11,7 @@ window.SUPABASE_CONFIG = {
   tableRecords: 'at_records',
   tablePartImages: 'at_part_images',
   tableStationRecords: 'at_station_records',
+  tableCalibrationFactors: 'calibraciones_factores',
 
   // Bucket de Supabase Storage para documentos del expediente.
   // Debe existir en Storage > Buckets (o crearse con el SQL de setup).
